@@ -30,7 +30,7 @@ import logging
 import cv2
 
 def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx, num_class,
-                 nms_thresh=0.5, force_nms=True, nms_topk=400):
+                 nms_thresh=0.5, force_nms=True, nms_topk=100):
     """
     wrapper for initialize a detector
 
@@ -56,8 +56,8 @@ def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx, num_class,
         force suppress different categories
     """
     if net is not None:
-        if isinstance(data_shape, tuple):
-            data_shape = data_shape[0]
+        # if isinstance(data_shape, tuple):
+        #     data_shape = data_shape[0]
         net = get_symbol(net, data_shape, num_classes=num_class, nms_thresh=nms_thresh,
             force_nms=force_nms, nms_topk=nms_topk)
     detector = Detector(net, prefix, epoch, data_shape, mean_pixels, ctx=ctx)
@@ -84,7 +84,9 @@ def parse_args():
                         action='store_true', default=False)
     parser.add_argument('--gpu', dest='gpu_id', type=int, default=0,
                         help='GPU device id to detect with')
-    parser.add_argument('--data-shape', dest='data_shape', type=str, default='512',
+    parser.add_argument('--data-shape-height', dest='data_shape_height', type=int, default=300,
+                        help='set image shape')
+    parser.add_argument('--data-shape-width', dest='data_shape_width', type=int, default=300,
                         help='set image shape')
     parser.add_argument('--mean-r', dest='mean_r', type=float, default=123,
                         help='red mean value')
@@ -208,9 +210,10 @@ def run_images(args,ctx):
 
     network = None if args.deploy_net else args.network
     class_names = parse_class_names(args.class_names)
-    data_shape = parse_data_shape(args.data_shape)
+    # len(data_shape) = 2
+    data_shape = parse_data_shape(str(args.data_shape_height) + ',' + str(args.data_shape_width))
     if args.prefix.endswith('_'):
-        prefix = args.prefix + args.network + '_' + str(data_shape[0])
+        prefix = args.prefix + args.network + '_' + str(data_shape[0]) + '_' + str(data_shape[1])
     else:
         prefix = args.prefix
     detector = get_detector(network, prefix, args.epoch,

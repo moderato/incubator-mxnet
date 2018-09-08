@@ -26,36 +26,50 @@ def get_config(network, data_shape, **kwargs):
     ----------
     network : str
         base network name, such as vgg_reduced, inceptionv3, resnet...
-    data_shape : int
+    data_shape : int/tuple
         input data dimension
     kwargs : dict
         extra arguments
     """
+    if isinstance(data_shape, int):
+        data_shape = (3, data_shape, data_shape)
+    elif isinstance(data_shape, tuple) and len(data_shape) == 2:
+        data_shape = (3, data_shape[0], data_shape[1])
+    assert len(data_shape) == 3 and data_shape[0] == 3
+
+    max_size = min(data_shape[1], data_shape[2])
+
     if network == 'vgg16_reduced':
-        if data_shape >= 448:
-            from_layers = ['relu4_3', 'relu7', '', '', '', '', '']
+        if max_size >= 448:
+            from_layers = ['conv4_3', 'fc7', '', '', '', '', '']
+            # from_layers = ['relu4_3', 'relu7', '', '', '', '', '']
             num_filters = [512, -1, 512, 256, 256, 256, 256]
             strides = [-1, -1, 2, 2, 2, 2, 1]
             pads = [-1, -1, 1, 1, 1, 1, 1]
             sizes = [[.07, .1025], [.15,.2121], [.3, .3674], [.45, .5196], [.6, .6708], \
                 [.75, .8216], [.9, .9721]]
-            ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
-                [1,2,.5,3,1./3], [1,2,.5], [1,2,.5]]
+            ratios = [[1]] * 7
+            # ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            #     [1,2,.5,3,1./3], [1,2,.5], [1,2,.5]]
             normalizations = [20, -1, -1, -1, -1, -1, -1]
-            steps = [] if data_shape != 512 else [x / 512.0 for x in
-                [8, 16, 32, 64, 128, 256, 512]]
+            # steps = [] if max_size != 512 else [x / 512.0 for x in [8, 16, 32, 64, 128, 256, 512]]
+            steps = []
         else:
-            from_layers = ['relu4_3', 'relu7', '', '', '', '']
+            # from_layers = ['relu4_3', 'relu7', '', '', '', '']
+            from_layers = ['conv4_3', 'fc7', '', '', '', '']
             num_filters = [512, -1, 512, 256, 256, 256]
             strides = [-1, -1, 2, 2, 1, 1]
             pads = [-1, -1, 1, 1, 0, 0]
-            sizes = [[.1, .141], [.2,.272], [.37, .447], [.54, .619], [.71, .79], [.88, .961]]
-            ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
-                [1,2,.5], [1,2,.5]]
+            # sizes = [[.1, .141], [.2,.272], [.37, .447], [.54, .619], [.71, .79], [.88, .961]]
+            sizes = [[.05, .1], [.1, .2], [.2, .3], [.3, .4], [.4, .5], [.5, .6]]
+            ratios = [[1]] * 6
+            # ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            #     [1,2,.5], [1,2,.5]]
             normalizations = [20, -1, -1, -1, -1, -1]
-            steps = [] if data_shape != 300 else [x / 300.0 for x in [8, 16, 32, 64, 100, 300]]
-        if not (data_shape == 300 or data_shape == 512):
-            logging.warn('data_shape %d was not tested, use with caucious.' % data_shape)
+            # steps = [] if max_size != 300 else [x / 300.0 for x in [8, 16, 32, 64, 100, 300]]
+            steps = []
+        # if not (max_size == 300 or max_size == 512):
+        #     logging.warn('data_shape %d was not tested, use with caucious.' % data_shape)
         return locals()
     elif network == 'inceptionv3':
         from_layers = ['ch_concat_mixed_7_chconcat', 'ch_concat_mixed_10_chconcat', '', '', '', '']
@@ -96,8 +110,38 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         return locals()
+    elif network == "mobilenet_v1":
+        if max_size >= 448:
+            from_layers = ['conv5_5_sep', 'conv6_sep', '', '', '', '', '']
+            num_filters = [512, 1024, 512, 256, 256, 256, 128]
+            strides = [-1, -1, 2, 2, 2, 2, 2]
+            pads = [-1, -1, 1, 1, 1, 1, 1]
+            sizes = [[.07, .1025], [.15,.2121], [.3, .3674], [.45, .5196], [.6, .6708], \
+                [.75, .8216], [.9, .9721]]
+            ratios = [[1]] * 7
+            # ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            #     [1,2,.5,3,1./3], [1,2,.5], [1,2,.5]]
+            normalizations = [20, -1, -1, -1, -1, -1, -1]
+            # steps = [] if max_size != 512 else [x / 512.0 for x in [8, 16, 32, 64, 128, 256, 512]]
+            steps = []
+        else:
+            from_layers = ['conv5_5_sep', 'conv6_sep', '', '', '', '']
+            num_filters = [512, 1024, 512, 256, 256, 128]
+            strides = [-1, -1, 2, 2, 2, 2]
+            pads = [-1, -1, 1, 1, 1, 1]
+            sizes = [[.05, .1], [.1, .2], [.2, .3], [.3, .4], [.4, .5], [.5, .6]]
+            ratios = [[1]] * 6
+            # ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            #     [1,2,.5], [1,2,.5]]
+            normalizations = [20, -1, -1, -1, -1, -1]
+            # steps = [] if max_size != 300 else [x / 300.0 for x in [8, 16, 32, 64, 100, 300]]
+            steps = []
+        # if not (max_size == 300 or max_size == 512):
+        #     logging.warn('data_shape %d was not tested, use with caucious.' % data_shape)
+        return locals()
+
     else:
-        msg = 'No configuration found for %s with data_shape %d' % (network, data_shape)
+        msg = 'No configuration found for %s with data_shape (%d, %d)' % (network, data_shape[1], data_shape[2])
         raise NotImplementedError(msg)
 
 def get_symbol_train(network, data_shape, **kwargs):
@@ -107,7 +151,7 @@ def get_symbol_train(network, data_shape, **kwargs):
     ----------
     network : str
         name for the base network symbol
-    data_shape : int
+    data_shape : int/tuple
         input shape
     kwargs : dict
         see symbol_builder.get_symbol_train for more details
@@ -126,7 +170,7 @@ def get_symbol(network, data_shape, **kwargs):
     ----------
     network : str
         name for the base network symbol
-    data_shape : int
+    data_shape : int/tuple
         input shape
     kwargs : dict
         see symbol_builder.get_symbol for more details

@@ -18,6 +18,13 @@
 # under the License.
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-mkdir -p $DIR/../data/VOCdevkit/mxnet
-$DIR/prepare_dataset.py --dataset pascal --year 2007,2012 --set trainval --target $DIR/../data/VOCdevkit/mxnet/train.lst
-$DIR/prepare_dataset.py --dataset pascal --year 2007 --set test --target $DIR/../data/VOCdevkit/mxnet/val.lst --no-shuffle
+mkdir -p $DIR/../data/GTSDBdevkit/mxnet
+$DIR/prepare_dataset.py --dataset gtsdb --set trainval \
+	--root $DIR/../data/GTSDBdevkit \
+	--target $DIR/../data/GTSDBdevkit/mxnet/train.lst \
+	--img-width-resize 300
+$DIR/prepare_dataset.py --dataset gtsdb --set test \
+	--root $DIR/../data/GTSDBdevkit \
+	--target $DIR/../data/GTSDBdevkit/mxnet/val.lst \
+	--img-width-resize 300 \
+	--no-shuffle

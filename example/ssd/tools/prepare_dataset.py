@@ -26,6 +26,7 @@ curr_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(os.path.join(curr_path, '..'))
 from dataset.pascal_voc import PascalVoc
 from dataset.mscoco import Coco
+from dataset.gtsdb import GTSDB
 from dataset.concat_db import ConcatDB
 
 def load_pascal(image_set, year, devkit_path, shuffle=False):
@@ -91,6 +92,26 @@ def load_coco(image_set, dirname, shuffle=False):
     else:
         return imdbs[0]
 
+def load_gtsdb(image_set, devkit_path, shuffle=False):
+    """
+    wrapper function for loading gtsdb dataset
+
+    Parameters:
+    ----------
+    image_set : str
+        trainval, test
+    devkit_path: str
+        root dir for gtsdb
+    shuffle: boolean
+        initial shuffle
+    """
+    imdbs = []
+    imdbs.append(GTSDB(image_set, devkit_path, shuffle, is_train=True))
+    if len(imdbs) > 1:
+        return ConcatDB(imdbs, shuffle)
+    else:
+        return imdbs[0]
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Prepare lists for dataset')
     parser.add_argument('--dataset', dest='dataset', help='dataset to use',
@@ -102,6 +123,8 @@ def parse_args():
     parser.add_argument('--target', dest='target', help='output list file',
                         default=os.path.join(curr_path, '..', 'train.lst'),
                         type=str)
+    parser.add_argument('--img-width-resize', dest='width_resize', type=int, default=300,
+                        help='image width to be resized to')
     parser.add_argument('--root', dest='root_path', help='dataset root path',
                         default=os.path.join(curr_path, '..', 'data', 'VOCdevkit'),
                         type=str)
@@ -123,6 +146,10 @@ if __name__ == '__main__':
         db = load_coco(args.set, args.root_path, args.shuffle)
         print("saving list to disk...")
         db.save_imglist(args.target, root=args.root_path)
+    elif args.dataset == 'gtsdb':
+        db = load_gtsdb(args.set, args.root_path, args.shuffle)
+        print("saving list to disk...")
+        db.save_imglist(args.target, root=args.root_path)
     else:
         raise NotImplementedError("No implementation for dataset: " + args.dataset)
 
@@ -131,7 +158,8 @@ if __name__ == '__main__':
     cmd_arguments = ["python",
                     os.path.join(curr_path, "../../../tools/im2rec.py"),
                     os.path.abspath(args.target), os.path.abspath(args.root_path),
-                    "--pack-label", "--num-thread", str(args.num_thread)]
+                    "--pack-label", "--num-thread", str(args.num_thread),
+                    "--resize", str(args.width_resize)]
 
     if not args.shuffle:
         cmd_arguments.append("--no-shuffle")

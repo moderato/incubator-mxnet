@@ -56,8 +56,10 @@ def parse_args():
                         default=240, type=int)
     parser.add_argument('--frequent', dest='frequent', help='frequency of logging',
                         default=20, type=int)
-    parser.add_argument('--data-shape', dest='data_shape', type=int, default=300,
-                        help='set image shape')
+    parser.add_argument('--data-shape-height', dest='data_shape_height', type=int, default=300,
+                        help='set image height')
+    parser.add_argument('--data-shape-width', dest='data_shape_width', type=int, default=300,
+                        help='set image width')
     parser.add_argument('--label-width', dest='label_width', type=int, default=350,
                         help='force padding label width to sync across train and validation')
     parser.add_argument('--lr', dest='learning_rate', type=float, default=0.002,
@@ -95,6 +97,8 @@ def parse_args():
                         help='string of comma separated names, or text filename')
     parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.45,
                         help='non-maximum suppression threshold')
+    parser.add_argument('--nms-topk', dest='nms_topk', type=int, default=400,
+                        help='keep top k boxes after nms')
     parser.add_argument('--overlap', dest='overlap_thresh', type=float, default=0.5,
                         help='evaluation overlap threshold')
     parser.add_argument('--force', dest='force_nms', action='store_true',
@@ -133,7 +137,8 @@ if __name__ == '__main__':
     # start training
     train_net(args.network, args.train_path,
               args.num_class, args.batch_size,
-              args.data_shape, [args.mean_r, args.mean_g, args.mean_b],
+              (3, args.data_shape_height, args.data_shape_width),
+              [args.mean_r, args.mean_g, args.mean_b],
               args.resume, args.finetune, args.pretrained,
               args.epoch, args.prefix, ctx, args.begin_epoch, args.end_epoch,
               args.frequent, args.learning_rate, args.momentum, args.weight_decay,
@@ -147,6 +152,7 @@ if __name__ == '__main__':
               monitor_pattern=args.monitor_pattern,
               log_file=args.log_file,
               nms_thresh=args.nms_thresh,
+              nms_topk = args.nms_topk,
               force_nms=args.force_nms,
               ovp_thresh=args.overlap_thresh,
               use_difficult=args.use_difficult,

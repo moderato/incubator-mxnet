@@ -30,7 +30,7 @@ RandCropper = namedtuple_with_defaults('RandCropper',
     0.0, 1.0,
     0.0, 1.0,
     0.0, 1.0,
-    25])
+    50])
 
 RandPadder = namedtuple_with_defaults('RandPadder',
     'rand_pad_prob, max_pad_scale, fill_value',

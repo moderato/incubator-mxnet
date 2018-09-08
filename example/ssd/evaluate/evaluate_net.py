@@ -78,7 +78,7 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
     if isinstance(data_shape, int):
         data_shape = (3, data_shape, data_shape)
     assert len(data_shape) == 3 and data_shape[0] == 3
-    model_prefix += '_' + str(data_shape[1])
+    model_prefix += '_' + str(data_shape[1]) + '_' + str(data_shape[2])
 
     # iterator
     eval_iter = DetRecordIter(path_imgrec, batch_size, data_shape, mean_pixels=mean_pixels,
@@ -89,7 +89,7 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
     if net is None:
         net = load_net
     else:
-        net = get_symbol(net, data_shape[1], num_classes=num_classes,
+        net = get_symbol(net, data_shape, num_classes=num_classes,
             nms_thresh=nms_thresh, force_suppress=force_nms)
     if not 'label' in net.list_arguments():
         label = mx.sym.Variable(name='label')
@@ -106,6 +106,9 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
         metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names)
     else:
         metric = MApMetric(ovp_thresh, use_difficult, class_names)
-    results = mod.score(eval_iter, metric, num_batch=None)
+    results = mod.score(eval_iter, metric, num_batch=None,
+                        batch_end_callback=mx.callback.Speedometer(batch_size,
+                        frequent=10,
+                        auto_reset=False))
     for k, v in results:
         print("{}: {}".format(k, v))

@@ -32,8 +32,10 @@ def parse_args():
                         default=0, type=int)
     parser.add_argument('--prefix', dest='prefix', help='trained model prefix',
                         default=os.path.join(os.getcwd(), 'model', 'ssd_'), type=str)
-    parser.add_argument('--data-shape', dest='data_shape', type=int, default=300,
-                        help='data shape')
+    parser.add_argument('--data-shape-height', dest='data_shape_height', type=int, default=300,
+                        help='set image shape')
+    parser.add_argument('--data-shape-width', dest='data_shape_width', type=int, default=300,
+                        help='set image shape')
     parser.add_argument('--num-class', dest='num_classes', help='number of classes',
                         default=20, type=int)
     parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.5,
@@ -47,11 +49,11 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    net = get_symbol(args.network, args.data_shape,
+    net = get_symbol(args.network, (3, args.data_shape_height, args.data_shape_width),
         num_classes=args.num_classes, nms_thresh=args.nms_thresh,
         force_suppress=args.force_nms, nms_topk=args.nms_topk)
     if args.prefix.endswith('_'):
-        prefix = args.prefix + args.network + '_' + str(args.data_shape)
+        prefix = args.prefix + args.network + '_' + str(args.data_shape_height) + '_' + str(args.data_shape_width)
     else:
         prefix = args.prefix
     _, arg_params, aux_params = mx.model.load_checkpoint(prefix, args.epoch)

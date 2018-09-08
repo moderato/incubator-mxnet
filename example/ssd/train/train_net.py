@@ -178,7 +178,7 @@ def train_net(net, train_path, num_classes, batch_size,
     if isinstance(data_shape, int):
         data_shape = (3, data_shape, data_shape)
     assert len(data_shape) == 3 and data_shape[0] == 3
-    prefix += '_' + net + '_' + str(data_shape[1])
+    prefix += '_' + net + '_' + str(data_shape[1]) + '_' + str(data_shape[2])
 
     if isinstance(mean_pixels, (int, float)):
         mean_pixels = [mean_pixels, mean_pixels, mean_pixels]
@@ -194,7 +194,7 @@ def train_net(net, train_path, num_classes, batch_size,
         val_iter = None
 
     # load symbol
-    net = get_symbol_train(net, data_shape[1], num_classes=num_classes,
+    net = get_symbol_train(net, data_shape, num_classes=num_classes,
         nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
 
     # define layers with fixed weight/bias
@@ -241,7 +241,7 @@ def train_net(net, train_path, num_classes, batch_size,
 
     # fit parameters
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
-    epoch_end_callback = mx.callback.do_checkpoint(prefix)
+    epoch_end_callback = mx.callback.do_checkpoint(prefix, end_epoch / 2)
     learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
         lr_refactor_ratio, num_example, batch_size, begin_epoch)
     optimizer_params={'learning_rate':learning_rate,

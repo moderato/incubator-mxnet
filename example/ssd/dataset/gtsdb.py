@@ -24,16 +24,14 @@ from evaluate.eval_voc import voc_eval
 import cv2
 
 
-class PascalVoc(Imdb):
+class GTSDB(Imdb):
     """
-    Implementation of Imdb for Pascal VOC datasets
+    Implementation of Imdb for GTSDB datasets
 
     Parameters:
     ----------
     image_set : str
         set to be used, can be train, val, trainval, test
-    year : str
-        year of dataset, can be 2007, 2010, 2012...
     devkit_path : str
         devkit path of VOC dataset
     shuffle : boolean
@@ -41,18 +39,15 @@ class PascalVoc(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    def __init__(self, image_set, year, devkit_path, shuffle=False, is_train=False,
-            names='pascal_voc.names'):
-        super(PascalVoc, self).__init__('voc_' + year + '_' + image_set)
+    def __init__(self, image_set, devkit_path, shuffle=False, is_train=False):
+        super(GTSDB, self).__init__('gtsdb_' + image_set)
         self.image_set = image_set
-        self.year = year
         self.devkit_path = devkit_path
-        self.data_path = os.path.join(devkit_path, 'VOC' + year)
+        self.data_path = os.path.join(devkit_path, 'GTSDB')
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = self._load_class_names(names,
-            os.path.join(os.path.dirname(__file__), 'names'))
+        self.classes = ['danger', 'mandatory', 'other', 'prohibitory']
 
         self.config = {'use_difficult': True,
                        'comp_id': 'comp4',}
@@ -111,7 +106,7 @@ class PascalVoc(Imdb):
         """
         assert self.image_set_index is not None, "Dataset not initialized"
         name = self.image_set_index[index]
-        image_file = os.path.join(self.data_path, 'JPEGImages', name + self.extension)
+        image_file = os.path.join(self.data_path, 'JPEGImages', self.image_set, name + self.extension)
         assert os.path.exists(image_file), 'Path does not exist: {}'.format(image_file)
         return image_file
 
@@ -143,7 +138,7 @@ class PascalVoc(Imdb):
         ----------
         full path of annotation file
         """
-        label_file = os.path.join(self.data_path, 'Annotations', index + '.xml')
+        label_file = os.path.join(self.data_path, 'Annotations', self.image_set, index + '.xml')
         assert os.path.exists(label_file), 'Path does not exist: {}'.format(label_file)
         return label_file
 
@@ -168,7 +163,7 @@ class PascalVoc(Imdb):
             label = []
 
             for obj in root.iter('object'):
-                difficult = int(obj.find('difficult').text)
+                difficult = 0
                 # if not self.config['use_difficult'] and difficult == 1:
                 #     continue
                 cls_name = obj.find('name').text
@@ -199,14 +194,14 @@ class PascalVoc(Imdb):
         result_dir = os.path.join(self.devkit_path, 'results')
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
-        year_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year)
-        if not os.path.exists(year_folder):
-            os.mkdir(year_folder)
-        res_file_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year, 'Main')
+        gtsdb_folder = os.path.join(self.devkit_path, 'results', 'GTSDB')
+        if not os.path.exists(gtsdb_folder):
+            os.mkdir(gtsdb_folder)
+        res_file_folder = os.path.join(self.devkit_path, 'results', 'GTSDB', 'Main')
         if not os.path.exists(res_file_folder):
             os.mkdir(res_file_folder)
 
-        self.write_gtsdb_results(detections)
+        self.write_pascal_results(detections)
         self.do_python_eval()
 
     def get_result_file_template(self):
@@ -218,15 +213,15 @@ class PascalVoc(Imdb):
         ----------
             a string template
         """
-        res_file_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year, 'Main')
+        res_file_folder = os.path.join(self.devkit_path, 'results', 'GTSDB', 'Main')
         comp_id = self.config['comp_id']
         filename = comp_id + '_det_' + self.image_set + '_{:s}.txt'
         path = os.path.join(res_file_folder, filename)
         return path
 
-    def write_pascal_results(self, all_boxes):
+    def write_gtsdb_results(self, all_boxes):
         """
-        write results files in pascal devkit path
+        write results files in gtsdb devkit path
         Parameters:
         ----------
         all_boxes: list
@@ -236,7 +231,7 @@ class PascalVoc(Imdb):
         None
         """
         for cls_ind, cls in enumerate(self.classes):
-            print('Writing {} VOC results file'.format(cls))
+            print('Writing {} GTSDB results file'.format(cls))
             filename = self.get_result_file_template().format(cls)
             with open(filename, 'wt') as f:
                 for im_ind, index in enumerate(self.image_set_index):
@@ -264,13 +259,11 @@ class PascalVoc(Imdb):
         imageset_file = os.path.join(self.data_path, 'ImageSets', 'Main', self.image_set + '.txt')
         cache_dir = os.path.join(self.cache_path, self.name)
         aps = []
-        # The PASCAL VOC metric changed in 2010
-        use_07_metric = True if int(self.year) < 2010 else False
-        print('VOC07 metric? ' + ('Y' if use_07_metric else 'No'))
+        
         for cls_ind, cls in enumerate(self.classes):
             filename = self.get_result_file_template().format(cls)
             rec, prec, ap = voc_eval(filename, annopath, imageset_file, cls, cache_dir,
-                                     ovthresh=0.5, use_07_metric=use_07_metric)
+                                     ovthresh=0.2)
             aps += [ap]
             print('AP for {} = {:.4f}'.format(cls, ap))
         print('Mean AP = {:.4f}'.format(np.mean(aps)))

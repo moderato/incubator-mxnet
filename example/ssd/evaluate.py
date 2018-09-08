@@ -47,7 +47,9 @@ def parse_args():
                         default='0', type=str)
     parser.add_argument('--cpu', dest='cpu', help='use cpu to evaluate, this can be slow',
                         action='store_true')
-    parser.add_argument('--data-shape', dest='data_shape', type=int, default=300,
+    parser.add_argument('--data-shape-height', dest='data_shape_height', type=int, default=300,
+                        help='set image shape')
+    parser.add_argument('--data-shape-width', dest='data_shape_width', type=int, default=300,
                         help='set image shape')
     parser.add_argument('--mean-r', dest='mean_r', type=float, default=123,
                         help='red mean value')
@@ -98,7 +100,7 @@ if __name__ == '__main__':
     else:
         prefix = args.prefix
     evaluate_net(network, args.rec_path, num_class,
-                 (args.mean_r, args.mean_g, args.mean_b), args.data_shape,
+                 (args.mean_r, args.mean_g, args.mean_b), (3, args.data_shape_height, args.data_shape_width),
                  prefix, args.epoch, ctx, batch_size=args.batch_size,
                  path_imglist=args.list_path, nms_thresh=args.nms_thresh,
                  force_nms=args.force_nms, ovp_thresh=args.overlap_thresh,
