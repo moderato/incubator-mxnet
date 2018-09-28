@@ -139,6 +139,35 @@ def get_config(network, data_shape, **kwargs):
         # if not (max_size == 300 or max_size == 512):
         #     logging.warn('data_shape %d was not tested, use with caucious.' % data_shape)
         return locals()
+    elif network == "mobilenet_v2":
+        if max_size >= 448:
+            from_layers = ['conv5_3_expand', 'conv6_4', '', '', '', '', '']
+            num_filters = [576, 1280, 512, 256, 256, 256, 128]
+            strides = [-1, -1, 2, 2, 2, 2, 2]
+            pads = [-1, -1, 1, 1, 1, 1, 1]
+            sizes = [[.07, .1025], [.15,.2121], [.3, .3674], [.45, .5196], [.6, .6708], \
+                [.75, .8216], [.9, .9721]]
+            ratios = [[1]] * 7
+            # ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            #     [1,2,.5,3,1./3], [1,2,.5], [1,2,.5]]
+            normalizations = [20, -1, -1, -1, -1, -1, -1]
+            # steps = [] if max_size != 512 else [x / 512.0 for x in [8, 16, 32, 64, 128, 256, 512]]
+            steps = []
+        else:
+            from_layers = ['conv5_3_expand', 'conv6_4', '', '', '', '']
+            num_filters = [576, 1280, 512, 256, 256, 128]
+            strides = [-1, -1, 2, 2, 2, 2]
+            pads = [-1, -1, 1, 1, 1, 1]
+            sizes = [[.05, .1], [.1, .2], [.2, .3], [.3, .4], [.4, .5], [.5, .6]]
+            ratios = [[1]] * 6
+            # ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            #     [1,2,.5], [1,2,.5]]
+            normalizations = [20, -1, -1, -1, -1, -1]
+            # steps = [] if max_size != 300 else [x / 300.0 for x in [8, 16, 32, 64, 100, 300]]
+            steps = []
+        # if not (max_size == 300 or max_size == 512):
+        #     logging.warn('data_shape %d was not tested, use with caucious.' % data_shape)
+        return locals()
 
     else:
         msg = 'No configuration found for %s with data_shape (%d, %d)' % (network, data_shape[1], data_shape[2])
