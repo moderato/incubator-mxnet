@@ -89,7 +89,7 @@ def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
 
 def train_net(net, train_path, num_classes, batch_size,
               data_shape, mean_pixels, resume, finetune, pretrained, epoch,
-              prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
+              prefix, ctx, begin_epoch, end_epoch, solver, frequent, learning_rate,
               momentum, weight_decay, lr_refactor_step, lr_refactor_ratio,
               freeze_layer_pattern='',
               num_example=10000, label_pad_width=350,
@@ -97,7 +97,7 @@ def train_net(net, train_path, num_classes, batch_size,
               use_difficult=False, class_names=None,
               voc07_metric=False, nms_topk=400, force_suppress=False,
               train_list="", val_path="", val_list="", iter_monitor=0,
-              monitor_pattern=".*", log_file=None):
+              monitor_pattern=".*", log_file=None, lite=False):
     """
     Wrapper for training phase.
 
@@ -178,7 +178,10 @@ def train_net(net, train_path, num_classes, batch_size,
     if isinstance(data_shape, int):
         data_shape = (3, data_shape, data_shape)
     assert len(data_shape) == 3 and data_shape[0] == 3
+    if lite:
+        prefix += 'lite'
     prefix += '_' + net + '_' + str(data_shape[1]) + '_' + str(data_shape[2])
+    print(prefix)
 
     if isinstance(mean_pixels, (int, float)):
         mean_pixels = [mean_pixels, mean_pixels, mean_pixels]
@@ -195,7 +198,7 @@ def train_net(net, train_path, num_classes, batch_size,
 
     # load symbol
     net = get_symbol_train(net, data_shape, num_classes=num_classes,
-        nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
+        nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk, lite=lite)
 
     # define layers with fixed weight/bias
     if freeze_layer_pattern.strip():
@@ -244,12 +247,21 @@ def train_net(net, train_path, num_classes, batch_size,
     epoch_end_callback = mx.callback.do_checkpoint(prefix, end_epoch / 2)
     learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
         lr_refactor_ratio, num_example, batch_size, begin_epoch)
-    optimizer_params={'learning_rate':learning_rate,
-                      'momentum':momentum,
-                      'wd':weight_decay,
-                      'lr_scheduler':lr_scheduler,
-                      'clip_gradient':None,
-                      'rescale_grad': 1.0 / len(ctx) if len(ctx) > 0 else 1.0 }
+
+    if solver == 'sgd':
+        optimizer_params={'learning_rate':learning_rate,
+                          'momentum':momentum,
+                          'wd':weight_decay,
+                          'lr_scheduler':lr_scheduler,
+                          'clip_gradient':None,
+                          'rescale_grad': 1.0 / len(ctx) if len(ctx) > 0 else 1.0}
+    elif solver == 'rmsprop':
+        optimizer_params={'learning_rate':learning_rate,
+                          'gamma1': 0.5,
+                          'wd':weight_decay,
+                          'lr_scheduler':lr_scheduler,
+                          'rescale_grad': 1.0 / len(ctx) if len(ctx) > 0 else 1.0}
+
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
 
     # run fit net, every n epochs we run evaluation network to get mAP
@@ -264,7 +276,7 @@ def train_net(net, train_path, num_classes, batch_size,
             validation_metric=valid_metric,
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
-            optimizer='sgd',
+            optimizer=solver,
             optimizer_params=optimizer_params,
             begin_epoch=begin_epoch,
             num_epoch=end_epoch,

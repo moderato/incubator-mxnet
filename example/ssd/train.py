@@ -54,6 +54,8 @@ def parse_args():
                         default=0, type=int)
     parser.add_argument('--end-epoch', dest='end_epoch', help='end epoch of training',
                         default=240, type=int)
+    parser.add_argument('--solver', dest='solver', help='optimizer to be used',
+                        default='sgd', type=str)
     parser.add_argument('--frequent', dest='frequent', help='frequency of logging',
                         default=20, type=int)
     parser.add_argument('--data-shape-height', dest='data_shape_height', type=int, default=300,
@@ -107,6 +109,9 @@ def parse_args():
                         help='use difficult ground-truths in evaluation')
     parser.add_argument('--no-voc07', dest='use_voc07_metric', action='store_false',
                         help='dont use PASCAL VOC 07 11-point metric')
+    parser.add_argument('--lite', dest='lite', action='store_true',
+                        help='use SSDLite')
+
     args = parser.parse_args()
     return args
 
@@ -134,6 +139,7 @@ if __name__ == '__main__':
     ctx = [mx.cpu()] if not ctx else ctx
     # class names if applicable
     class_names = parse_class_names(args)
+    print
     # start training
     train_net(args.network, args.train_path,
               args.num_class, args.batch_size,
@@ -141,7 +147,7 @@ if __name__ == '__main__':
               [args.mean_r, args.mean_g, args.mean_b],
               args.resume, args.finetune, args.pretrained,
               args.epoch, args.prefix, ctx, args.begin_epoch, args.end_epoch,
-              args.frequent, args.learning_rate, args.momentum, args.weight_decay,
+              args.solver, args.frequent, args.learning_rate, args.momentum, args.weight_decay,
               args.lr_refactor_step, args.lr_refactor_ratio,
               val_path=args.val_path,
               num_example=args.num_example,
@@ -156,4 +162,5 @@ if __name__ == '__main__':
               force_nms=args.force_nms,
               ovp_thresh=args.overlap_thresh,
               use_difficult=args.use_difficult,
-              voc07_metric=args.use_voc07_metric)
+              voc07_metric=args.use_voc07_metric,
+              lite=args.lite)

@@ -28,7 +28,7 @@ def import_module(module_name):
 
 def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pads,
                      sizes, ratios, normalizations=-1, steps=[], min_filter=128,
-                     nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
+                     nms_thresh=0.5, force_suppress=False, nms_topk=400, lite=False, **kwargs):
     """Build network symbol for training SSD
 
     Parameters
@@ -72,6 +72,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         whether suppress different class objects
     nms_topk : int
         apply NMS to top K detections
+    lite : use SSDLite
 
     Returns
     -------
@@ -81,7 +82,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     label = mx.sym.Variable('label')
     body = import_module(network).get_symbol(num_classes, **kwargs)
     layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
-        min_filter=min_filter)
+        min_filter=min_filter, lite=lite)
 
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
@@ -117,7 +118,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
                strides, pads, normalizations=-1, steps=[], min_filter=128,
-               nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
+               nms_thresh=0.5, force_suppress=False, nms_topk=400, lite=False, **kwargs):
     """Build network for testing SSD
 
     Parameters
@@ -169,7 +170,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     """
     body = import_module(network).get_symbol(num_classes, **kwargs)
     layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
-        min_filter=min_filter)
+        min_filter=min_filter, lite=lite)
 
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \

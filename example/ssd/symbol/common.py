@@ -54,6 +54,21 @@ def conv_act_layer(from_layer, name, num_filter, kernel=(1,1), pad=(0,0), \
         name="{}_{}".format(name, act_type))
     return relu
 
+def depth_sep_layer(from_layer, name, num_filter, kernel=(3,3), pad=(1,1), \
+    stride=(2,2), act_type="relu"):
+
+    conv_dw = mx.symbol.Convolution(name='{}_conv_dw'.format(name), data=from_layer, num_filter=num_filter, pad=pad, kernel=kernel, stride=stride, no_bias=True, num_group=num_filter)
+    conv_dw_bn = mx.symbol.BatchNorm(name='{}_conv_dw_bn'.format(name), data=conv_dw, fix_gamma=False, eps=0.000100)
+    conv_dw_scale = conv_dw_bn
+    relu_dw = mx.symbol.Activation(name='{}_{}_dw'.format(name, act_type), data=conv_dw_scale, act_type=act_type)
+
+    conv_sep = mx.symbol.Convolution(name='{}_conv_sep'.format(name), data=relu_dw, num_filter=num_filter * 2, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True)
+    conv_sep_bn = mx.symbol.BatchNorm(name='{}_conv_sep_bn'.format(name), data=conv_sep, fix_gamma=False, eps=0.000100)
+    conv_sep_scale = conv_sep_bn
+    relu_sep = mx.symbol.Activation(name='{}_{}_sep'.format(name, act_type), data=conv_sep_scale, act_type=act_type)
+
+    return relu_sep
+
 def legacy_conv_act_layer(from_layer, name, num_filter, kernel=(1,1), pad=(0,0), \
     stride=(1,1), act_type="relu", use_batchnorm=False):
     """
@@ -93,7 +108,7 @@ def legacy_conv_act_layer(from_layer, name, num_filter, kernel=(1,1), pad=(0,0),
         relu = mx.symbol.BatchNorm(data=relu, name="bn{}".format(name))
     return conv, relu
 
-def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filter=128):
+def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filter=128, lite=False):
     """Wrapper function to extract features from base network, attaching extra
     layers and SSD specific layers
 
@@ -145,9 +160,14 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
             num_1x1 = max(min_filter, num_filter // 2)
             conv_1x1 = conv_act_layer(layer, 'multi_feat_%d_conv_1x1' % (k),
                 num_1x1, kernel=(1, 1), pad=(0, 0), stride=(1, 1), act_type='relu')
-            conv_3x3 = conv_act_layer(conv_1x1, 'multi_feat_%d_conv_3x3' % (k),
-                num_filter, kernel=(3, 3), pad=(p, p), stride=(s, s), act_type='relu')
-            layers.append(conv_3x3)
+            if lite:
+                depth_sep = depth_sep_layer(conv_1x1, 'multi_feat_%d_depth' % (k),
+                    num_1x1, kernel=(3, 3), pad=(p, p), stride=(s, s), act_type='relu')
+                layers.append(depth_sep)
+            else:
+                conv_3x3 = conv_act_layer(conv_1x1, 'multi_feat_%d_conv_3x3' % (k),
+                    num_filter, kernel=(3, 3), pad=(p, p), stride=(s, s), act_type='relu')
+                layers.append(conv_3x3)
     return layers
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],

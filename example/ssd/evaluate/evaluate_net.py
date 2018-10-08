@@ -30,7 +30,7 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
                  model_prefix, epoch, ctx=mx.cpu(), batch_size=1,
                  path_imglist="", nms_thresh=0.45, force_nms=False,
                  ovp_thresh=0.5, use_difficult=False, class_names=None,
-                 voc07_metric=False):
+                 voc07_metric=False, lite=False):
     """
     evalute network given validation record file
 
@@ -90,7 +90,7 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
         net = load_net
     else:
         net = get_symbol(net, data_shape, num_classes=num_classes,
-            nms_thresh=nms_thresh, force_suppress=force_nms)
+            nms_thresh=nms_thresh, force_suppress=force_nms, lite=lite)
     if not 'label' in net.list_arguments():
         label = mx.sym.Variable(name='label')
         net = mx.sym.Group([net, label])

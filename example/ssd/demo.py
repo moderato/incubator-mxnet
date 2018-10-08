@@ -30,7 +30,7 @@ import logging
 import cv2
 
 def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx, num_class,
-                 nms_thresh=0.5, force_nms=True, nms_topk=100):
+                 nms_thresh=0.5, force_nms=True, nms_topk=100, lite=False):
     """
     wrapper for initialize a detector
 
@@ -59,7 +59,7 @@ def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx, num_class,
         # if isinstance(data_shape, tuple):
         #     data_shape = data_shape[0]
         net = get_symbol(net, data_shape, num_classes=num_class, nms_thresh=nms_thresh,
-            force_nms=force_nms, nms_topk=nms_topk)
+            force_nms=force_nms, nms_topk=nms_topk, lite=lite)
     detector = Detector(net, prefix, epoch, data_shape, mean_pixels, ctx=ctx)
     return detector
 
@@ -113,6 +113,8 @@ def parse_args():
                         help="use camera for image capturing")
     parser.add_argument('--frame-resize', type=str, default=None,
                         help="resize camera frame to x,y pixels or a float scaling factor")
+    parser.add_argument('--lite', dest='lite', action='store_true',
+                        help='use SSDLite')
     args = parser.parse_args()
     return args
 
@@ -179,7 +181,7 @@ def run_camera(args,ctx):
     data_shape = int(args.data_shape)
     batch_size = int(args.batch_size)
     detector = Detector(
-        get_symbol(args.network, data_shape, num_classes=len(class_names)),
+        get_symbol(args.network, data_shape, num_classes=len(class_names), lite=lite),
         network_path(args.prefix, args.network, data_shape),
         args.epoch,
         data_shape,
@@ -219,7 +221,7 @@ def run_images(args,ctx):
     detector = get_detector(network, prefix, args.epoch,
                             data_shape,
                             (args.mean_r, args.mean_g, args.mean_b),
-                            ctx, len(class_names), args.nms_thresh, args.force_nms)
+                            ctx, len(class_names), args.nms_thresh, args.force_nms, lite=args.lite)
     # run detection
     detector.detect_and_visualize(image_list, args.dir, args.extension,
                                   class_names, args.thresh, args.show_timer)

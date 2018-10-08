@@ -44,6 +44,8 @@ def parse_args():
                         help='dont force non-maximum suppression on different class')
     parser.add_argument('--topk', dest='nms_topk', type=int, default=400,
                         help='apply nms only to top k detections based on scores.')
+    parser.add_argument('--lite', dest='lite', action='store_true',
+                        help='use SSDLite')
     args = parser.parse_args()
     return args
 
@@ -51,7 +53,7 @@ if __name__ == '__main__':
     args = parse_args()
     net = get_symbol(args.network, (3, args.data_shape_height, args.data_shape_width),
         num_classes=args.num_classes, nms_thresh=args.nms_thresh,
-        force_suppress=args.force_nms, nms_topk=args.nms_topk)
+        force_suppress=args.force_nms, nms_topk=args.nms_topk, lite=args.lite)
     if args.prefix.endswith('_'):
         prefix = args.prefix + args.network + '_' + str(args.data_shape_height) + '_' + str(args.data_shape_width)
     else:
