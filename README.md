@@ -1,9 +1,11 @@
-The implementations for MobileNet-V1-SSD (https://arxiv.org/pdf/1704.04861.pdf) and MobileNet-V2-SSDLite (https://arxiv.org/pdf/1801.04381.pdf) are under the directory example/ssd/symbol. To train/test/deploy/infer with these models, see the train/test/deploy/demo scripts under example/ssd. Reference: [MobileNet-V1/V2](https://github.com/KeyKy/mobilenet-mxnet).
+The implementations for MobileNet-V1-SSD (https://arxiv.org/pdf/1704.04861.pdf) and MobileNet-V2-SSDLite (https://arxiv.org/pdf/1801.04381.pdf) are under the directory example/ssd/symbol. To train/test/deploy/infer with these models, see the train/test/deploy/demo scripts under example/ssd.
+
+Reference: [MobileNet-V1/V2](https://github.com/KeyKy/mobilenet-mxnet).
 
 To prepare the GTSDB dataset for training, run
 ```Shell
   bash tools/prepare_gtsdb.sh
-```
+```  
 under example/ssd.
 
 Below is the original README file of the [SSD](https://github.com/weiliu89/caffe/tree/ssd) repo.
