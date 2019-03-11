@@ -82,12 +82,66 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         return locals()
-    elif network == 'resnet50':
-        num_layers = 50
-        image_shape = '3,224,224'  # resnet require it as shape check
+    elif network == 'squeezenet_v10':
+        network = 'squeezenet'
+        version = "v1.0"
+        from_layers = ['fire5_concat', 'fire9_concat', '', '', '', '']
+        num_filters = [-1, -1, 512, 256, 256, 128]
+        strides = [-1, -1, 2, 2, 2, 2]
+        pads = [-1, -1, 1, 1, 1, 1]
+        sizes = [[.1, .141], [.2,.272], [.37, .447], [.54, .619], [.71, .79], [.88, .961]]
+        ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            [1,2,.5], [1,2,.5]]
+        normalizations = -1
+        steps = []
+        return locals()
+    elif network == "squeezenet_v11":
+        network = 'squeezenet'
+        version = "v1.1"
+        from_layers = ['fire4_concat', 'fire6_concat', '', '', '', '']
+        num_filters = [-1, -1, 512, 256, 256, 128]
+        strides = [-1, -1, 2, 2, 2, 2]
+        pads = [-1, -1, 1, 1, 1, 1]
+        sizes = [[.1, .141], [.2,.272], [.37, .447], [.54, .619], [.71, .79], [.88, .961]]
+        ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            [1,2,.5], [1,2,.5]]
+        normalizations = -1
+        steps = []
+        return locals()
+    elif network == 'resnet18':
+        num_layers = 18
+        image_shape = '3,300,510'  # resnet require it as shape check
+        network = 'resnet'
+        from_layers = ['_plus5', '_plus7', '', '', '', '']
+        num_filters = [-1, -1, 512, 256, 256, 256]
+        strides = [-1, -1, 2, 2, 2, 2]
+        pads = [-1, -1, 1, 1, 1, 1]
+        sizes = [[.1, .141], [.2,.272], [.37, .447], [.54, .619], [.71, .79], [.88, .961]]
+        ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            [1,2,.5], [1,2,.5]]
+        normalizations = -1
+        steps = []
+        return locals()
+    elif network == 'resnet34':
+        num_layers = 34
+        image_shape = '3,300,510'  # resnet require it as shape check
         network = 'resnet'
         from_layers = ['_plus12', '_plus15', '', '', '', '']
-        num_filters = [-1, -1, 512, 256, 256, 128]
+        num_filters = [-1, -1, 512, 256, 256, 256]
+        strides = [-1, -1, 2, 2, 2, 2]
+        pads = [-1, -1, 1, 1, 1, 1]
+        sizes = [[.1, .141], [.2,.272], [.37, .447], [.54, .619], [.71, .79], [.88, .961]]
+        ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
+            [1,2,.5], [1,2,.5]]
+        normalizations = -1
+        steps = []
+        return locals()
+    elif network == 'resnet50':
+        num_layers = 50
+        image_shape = '3,300,510'  # resnet require it as shape check
+        network = 'resnet'
+        from_layers = ['_plus12', '_plus15', '', '', '', '']
+        num_filters = [-1, -1, 512, 256, 256, 256]
         strides = [-1, -1, 2, 2, 2, 2]
         pads = [-1, -1, 1, 1, 1, 1]
         sizes = [[.1, .141], [.2,.272], [.37, .447], [.54, .619], [.71, .79], [.88, .961]]
