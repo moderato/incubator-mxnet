@@ -180,8 +180,12 @@ def test_sparse_nd_equal():
         y = sparse_nd_ones(shape, stype)
         z = x == y
         assert (z.asnumpy() == np.zeros(shape)).all()
-        z = 0 == x
+        z = 0 == y
+        assert (z.asnumpy() == np.zeros(shape)).all()
+        assert z.stype == 'default'
+        z = 1 == y
         assert (z.asnumpy() == np.ones(shape)).all()
+        assert z.stype == stype
 
 
 @with_seed()
@@ -192,8 +196,12 @@ def test_sparse_nd_not_equal():
         y = sparse_nd_ones(shape, stype)
         z = x != y
         assert (z.asnumpy() == np.ones(shape)).all()
-        z = 0 != x
+        z = 0 != y
+        assert (z.asnumpy() == np.ones(shape)).all()
+        assert z.stype == stype
+        z = 1 != y
         assert (z.asnumpy() == np.zeros(shape)).all()
+        assert z.stype == 'default'
 
 
 @with_seed()
@@ -206,8 +214,13 @@ def test_sparse_nd_greater():
         assert (z.asnumpy() == np.zeros(shape)).all()
         z = y > 0
         assert (z.asnumpy() == np.ones(shape)).all()
+        assert z.stype == stype
         z = 0 > y
         assert (z.asnumpy() == np.zeros(shape)).all()
+        assert z.stype == stype
+        z = y > 1
+        assert (z.asnumpy() == np.zeros(shape)).all()
+        assert z.stype == stype
 
 
 @with_seed()
@@ -220,10 +233,13 @@ def test_sparse_nd_greater_equal():
         assert (z.asnumpy() == np.zeros(shape)).all()
         z = y >= 0
         assert (z.asnumpy() == np.ones(shape)).all()
+        assert z.stype == 'default'
         z = 0 >= y
         assert (z.asnumpy() == np.zeros(shape)).all()
+        assert z.stype == 'default'
         z = y >= 1
         assert (z.asnumpy() == np.ones(shape)).all()
+        assert z.stype == stype
 
 
 @with_seed()
@@ -236,8 +252,13 @@ def test_sparse_nd_lesser():
         assert (z.asnumpy() == np.zeros(shape)).all()
         z = 0 < y
         assert (z.asnumpy() == np.ones(shape)).all()
+        assert z.stype == stype
         z = y < 0
         assert (z.asnumpy() == np.zeros(shape)).all()
+        assert z.stype == stype
+        z = y < 1
+        assert (z.asnumpy() == np.zeros(shape)).all()
+        assert z.stype == 'default'
 
 
 @with_seed()
@@ -250,10 +271,13 @@ def test_sparse_nd_lesser_equal():
         assert (z.asnumpy() == np.zeros(shape)).all()
         z = 0 <= y
         assert (z.asnumpy() == np.ones(shape)).all()
+        assert z.stype == 'default'
         z = y <= 0
         assert (z.asnumpy() == np.zeros(shape)).all()
+        assert z.stype == 'default'
         z = 1 <= y
         assert (z.asnumpy() == np.ones(shape)).all()
+        assert z.stype == stype
 
 
 @with_seed()
@@ -891,6 +915,7 @@ def test_sparse_nd_fluent():
 
     check_fluent_regular('csr', 'slice', {'begin': (2, 5), 'end': (4, 7)}, shape=(5, 17))
     check_fluent_regular('row_sparse', 'clip', {'a_min': -0.25, 'a_max': 0.75})
+    check_fluent_regular('csr', 'clip', {'a_min': -0.25, 'a_max': 0.75})
 
     for func in ['sum', 'mean', 'norm']:
         check_fluent_regular('csr', func, {'axis': 0})
@@ -938,6 +963,11 @@ def test_sparse_nd_check_format():
     indptr_list = [0, -2, 2, 3]
     a = mx.nd.sparse.csr_matrix((data_list, indices_list, indptr_list), shape=shape)
     assertRaises(mx.base.MXNetError, a.check_format)
+    # CSR format should be 2 Dimensional.
+    a = mx.nd.array([1, 2, 3])
+    assertRaises(ValueError, a.tostype, 'csr')
+    a = mx.nd.array([[[1, 2, 3]]])
+    assertRaises(ValueError, a.tostype, 'csr')
     # Row Sparse format indices should be less than the number of rows
     shape = (3, 2)
     data_list = [[1, 2], [3, 4]]
@@ -988,6 +1018,43 @@ def test_sparse_fc():
     check_sparse_fc(5, 10, 8, 'default')
     # test FC with row_sparse weight w/ density=1, csr data (fallback)
     check_sparse_fc(5, 10, 8, 'csr')
+
+@with_seed()
+def test_sparse_take():
+    def check_sparse_take(density, mode):
+        data_shape = rand_shape_2d()
+        idx_shape = (np.random.randint(low=1, high=10),)
+        data = rand_ndarray(data_shape, 'csr', density=density).astype('int32')
+        idx = mx.nd.array(np.random.randint(low=-5, high=15, size=idx_shape))
+        data_np = data.asnumpy()
+        idx_np = idx.asnumpy().astype('int32')
+        expected_result = np.take(data_np, idx_np, mode=mode, axis=0)
+        result = mx.nd.take(data, idx, mode=mode)
+        assert_almost_equal(result.asnumpy(), expected_result)
+        assert result.indptr[0].asscalar() == 0
+    densities = [0, 0.5, 1]
+    modes = ['clip', 'wrap']
+    for d in densities:
+        for m in modes:
+            check_sparse_take(d, m)
+
+@with_seed()
+def test_sparse_getnnz():
+    if default_context().device_type is 'gpu':
+        return
+    def check_sparse_getnnz(density, axis):
+        shape = rand_shape_2d()
+        data = rand_ndarray(shape, 'csr', density=density)
+        data_sp = data.asscipy()
+        result = mx.nd.contrib.getnnz(data, axis=axis)
+        expected_result = data_sp.getnnz(axis=axis)
+        assert_almost_equal(result.asnumpy(), expected_result)
+
+    densities = [0, 0.5, 1]
+    axis = [1, None]
+    for d in densities:
+        for a in axis:
+            check_sparse_getnnz(d, a)
 
 if __name__ == '__main__':
     import nose

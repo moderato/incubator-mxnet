@@ -18,6 +18,7 @@
 package AI::MXNet::Metric;
 use strict;
 use warnings;
+use AI::MXNet::NS;
 use AI::MXNet::Function::Parameters;
 use Scalar::Util qw/blessed/;
 use JSON::PP;
@@ -240,7 +241,7 @@ method get()
 
     The accuracy score is defined as
 
-    accuracy(y, y^) = (1/n) * sum(i=0..n−1) { y^(i)==y(i) }
+    accuracy(y, y^) = (1/n) * sum(i=0..n-1) { y^(i)==y(i) }
 
     Parameters:
     axis (Int, default=1) – The axis that represents classes.

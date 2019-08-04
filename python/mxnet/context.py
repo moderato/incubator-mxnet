@@ -145,6 +145,24 @@ class Context(with_metaclass(_MXClassPropertyMetaClass, object)):
         cls._default_ctx.value = val
     #pylint: enable=no-self-argument
 
+    def empty_cache(self):
+        """Empties the memory cache for the current contexts device.
+
+        MXNet utilizes a memory pool to avoid excessive allocations.
+        Calling empty_cache will empty the memory pool of the contexts
+        device. This will only free the memory of the unreferenced data.
+
+        Examples
+        -------
+        >>> ctx = mx.gpu(0)
+        >>> arr = mx.nd.ones((200,200), ctx=ctx)
+        >>> del arr
+        >>> ctx.empty_cache() # forces release of memory allocated for arr
+        """
+        dev_type = ctypes.c_int(self.device_typeid)
+        dev_id = ctypes.c_int(self.device_id)
+        check_call(_LIB.MXStorageEmptyCache(dev_type, dev_id))
+
 # initialize the default context in Context
 Context._default_ctx.value = Context('cpu', 0)
 
@@ -257,6 +275,30 @@ def num_gpus():
     count = ctypes.c_int()
     check_call(_LIB.MXGetGPUCount(ctypes.byref(count)))
     return count.value
+
+def gpu_memory_info(device_id=0):
+    """Query CUDA for the free and total bytes of GPU global memory.
+
+    Parameters
+    ----------
+    device_id : int, optional
+        The device id of the GPU device.
+
+    Raises
+    ------
+    Will raise an exception on any CUDA error.
+
+    Returns
+    -------
+    (free, total) : (int, int)
+        The number of GPUs.
+
+    """
+    free = ctypes.c_uint64()
+    total = ctypes.c_uint64()
+    dev_id = ctypes.c_int(device_id)
+    check_call(_LIB.MXGetGPUMemoryInformation64(dev_id, ctypes.byref(free), ctypes.byref(total)))
+    return (free.value, total.value)
 
 def current_context():
     """Returns the current context.

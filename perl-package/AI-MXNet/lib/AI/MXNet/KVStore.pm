@@ -18,6 +18,7 @@
 package AI::MXNet::KVStore;
 use strict;
 use warnings;
+use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::NDArray;
 use AI::MXNet::Optimizer;
@@ -215,13 +216,14 @@ method push(
 method pull(
     Str|ArrayRef[Str] $key,
     AI::MXNet::NDArray|ArrayRef[AI::MXNet::NDArray]|ArrayRef[ArrayRef[AI::MXNet::NDArray]] :$out,
-    Int :$priority=0
+    Int :$priority=0,
+    Bool :$ignore_sparse=1
 )
 {
     my ($keys, $vals) = _key_value($key, $out);
     check_call(
-        AI::MXNetCAPI::KVStorePullEx(
-            $self->handle, scalar(@{ $keys }), $keys, $vals, $priority
+        AI::MXNetCAPI::KVStorePullWithSparseEx(
+            $self->handle, scalar(@{ $keys }), $keys, $vals, $priority, $ignore_sparse
         )
     );
 }

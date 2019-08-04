@@ -18,6 +18,7 @@
 package AI::MXNet::Visualization;
 use strict;
 use warnings;
+use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::Function::Parameters;
 use JSON::PP;
@@ -171,6 +172,10 @@ method print_summary(
                 my $num_filter = $shape_dict{$key}[1];
                 $cur_param = $num_filter * 2;
             }
+        }
+        elsif($op eq 'Embedding')
+        {
+            $cur_param = $node->{attrs}{input_dim} * $node->{attrs}{output_dim};
         }
         my $first_connection;
         if(not $pre_node)

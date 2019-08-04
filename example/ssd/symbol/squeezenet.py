@@ -28,15 +28,18 @@ def squeezenet_v10(num_classes=1000):
     fire8_concat = fire_module(fire7_concat, 64, 256, "fire8")
     pool8 = mx.symbol.Pooling(name='pool8', data=fire8_concat, pad=(0,0), kernel=(3,3), stride=(2,2), pool_type='max')
     fire9_concat = fire_module(pool8, 64, 256, "fire9")
-    drop9 = mx.symbol.Dropout(name='drop9', data=fire9_concat, p=0.500000)
 
-    conv10 = mx.symbol.Convolution(name='conv10', data=drop9, num_filter=num_classes, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=False)
-    relu_conv10 = mx.symbol.Activation(name='relu_conv10', data=conv10, act_type='relu')
-    pool10 = mx.symbol.Pooling(name='pool10', data=relu_conv10, pooling_convention='full', global_pool=True, kernel=(1,1), pool_type='avg')
-    flatten = mx.symbol.Flatten(data=pool10, name='flatten')
-    softmax = mx.symbol.SoftmaxOutput(name='softmax', data=flatten)
+    return fire9_concat
 
-    return softmax
+    # drop9 = mx.symbol.Dropout(name='drop9', data=fire9_concat, p=0.500000)
+    # conv10 = mx.symbol.Convolution(name='conv10', data=drop9, num_filter=num_classes, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=False)
+
+    # relu_conv10 = mx.symbol.Activation(name='relu_conv10', data=conv10, act_type='relu')
+    # pool10 = mx.symbol.Pooling(name='pool10', data=relu_conv10, pooling_convention='full', global_pool=True, pool_type='avg')
+    # flatten = mx.symbol.Flatten(data=pool10, name='flatten')
+    # softmax = mx.symbol.SoftmaxOutput(name='softmax', data=flatten)
+
+    # return softmax
 
 def squeezenet_v11(num_classes=1000):
     data = mx.symbol.Variable(name='data')
@@ -56,15 +59,18 @@ def squeezenet_v11(num_classes=1000):
     fire7_concat = fire_module(fire6_concat, 48, 192, "fire7")
     fire8_concat = fire_module(fire7_concat, 64, 256, "fire8")
     fire9_concat = fire_module(fire8_concat, 64, 256, "fire9")
-    drop9 = mx.symbol.Dropout(name='drop9', data=fire9_concat, p=0.500000)
 
-    conv10 = mx.symbol.Convolution(name='conv10', data=drop9, num_filter=num_classes, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=False)
-    relu_conv10 = mx.symbol.Activation(name='relu_conv10', data=conv10, act_type='relu')
-    pool10 = mx.symbol.Pooling(name='pool10', data=relu_conv10, pooling_convention='full', global_pool=True, kernel=(1,1), pool_type='avg')
-    flatten = mx.symbol.Flatten(data=pool10, name='flatten')
-    softmax = mx.symbol.SoftmaxOutput(name='softmax', data=flatten)
+    return fire9_concat
 
-    return softmax
+    # drop9 = mx.symbol.Dropout(name='drop9', data=fire9_concat, p=0.500000)
+    # conv10 = mx.symbol.Convolution(name='conv10', data=drop9, num_filter=num_classes, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=False)
+
+    # relu_conv10 = mx.symbol.Activation(name='relu_conv10', data=conv10, act_type='relu')
+    # pool10 = mx.symbol.Pooling(name='pool10', data=relu_conv10, pooling_convention='full', global_pool=True, pool_type='avg')
+    # flatten = mx.symbol.Flatten(data=pool10, name='flatten')
+    # softmax = mx.symbol.SoftmaxOutput(name='softmax', data=flatten)
+
+    # return softmax
 
 def get_symbol(num_classes=1000, version="v1.0", **kwargs):
     assert version == "v1.0" or version == "v1.1"

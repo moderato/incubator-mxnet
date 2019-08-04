@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 Contributors of Apache MXNet (incubating)
 =========================================
 MXNet has been developed by a community of people who are interested in large-scale machine learning and deep learning.
@@ -44,6 +61,19 @@ The committers are the granted write access to the project.
 * [Sergey Kolychev](https://github.com/sergeykolychev)
   - Sergey is original author and current maintainer of Perl5 interface.
 * [Naveen Swamy](https://github.com/nswamy)
+* [Marco de Abreu](https://github.com/marcoabreu)
+ - Marco is the creator of the current MXNet CI.
+* [Carin Meier](https://github.com/gigasquid)
+  - Carin created and is the current maintainer for the Clojure interface.
+* [Patric Zhao](https://github.com/pengzhao-intel)
+  - Patric is a parallel computing expert and a major contributor to the MXNet MKL-DNN backend.
+* [Tao Lv](https://github.com/TaoLv)
+  - Tao is a major contributor to the MXNet MKL-DNN backend and performance on CPU.
+* [Zach Kimberg](https://github.com/zachgk)
+  - Zach is one of the major maintainers of the MXNet Scala package.
+* [Lin Yuan](https://github.com/apeforest)
+  - Lin supports MXNet distributed training using Horovod and is also a major contributor to higher order gradients.
+
 
 ### Become a Committer
 MXNet is a opensource project and we are actively looking for new committers
@@ -52,6 +82,7 @@ who are willing to help maintaining and leading the project. Committers come fro
 * Willing to actively spend time on maintaining and leading the project.
 
 New committers will be proposed by current committers, with support from more than two of current committers.
+
 
 List of Contributors
 --------------------
@@ -153,8 +184,6 @@ List of Contributors
 * [Manu Seth](https://github.com/mseth10/)
 * [Calum Leslie](https://github.com/calumleslie)
 * [Andre Tamm](https://github.com/andretamm)
-* [Marco de Abreu](https://github.com/marcoabreu)
- - Marco is the creator of the current MXNet CI.
 * [Julian Salazar](https://github.com/JulianSlzr)
 * [Meghna Baijal](https://github.com/mbaijal)
 * [Tao Hu](https://github.com/dongzhuoyao)
@@ -172,9 +201,60 @@ List of Contributors
 * [Thomas Delteil](https://github.com/ThomasDelteil)
 * [Jesse Brizzi](https://github.com/jessebrizzi)
 * [Hang Zhang](http://hangzh.com)
-* [Lin Yuan](https://github.com/apeforest)
 * [Kou Ding](https://github.com/chinakook)
 * [Istvan Fehervari](https://github.com/ifeherva)
 * [Aaron Markham](https://github.com/aaronmarkham)
 * [Sam Skalicky](https://github.com/samskalicky)
 * [Per Goncalves da Silva](https://github.com/perdasilva)
+* [Zhijingcheng Yu](https://github.com/jasonyu1996)
+* [Cheng-Che Lee](https://github.com/stu1130)
+* [Chaitanya Bapat](https://github.com/ChaiBapchya)
+* [LuckyPigeon](https://github.com/LuckyPigeon)
+* [Anton Chernov](https://github.com/lebeg)
+* [Denisa Roberts](https://github.com/D-Roberts)
+* [Dick Carter](https://github.com/DickJC123)
+* [Rahul Padmanabhan](https://github.com/rahul3)
+* [Yuxi Hu](https://github.com/yuxihu)
+* [Harsh Patel](https://github.com/harshp8l)
+* [Xiao Wang](https://github.com/BeyonderXX)
+* [Piyush Ghai](https://github.com/piyushghai)
+* [Dang Trung Kien](https://github.com/kiendang)
+* [Zach Boldyga](https://github.com/zboldyga)
+* [Gordon Reid](https://github.com/gordon1992)
+* [Mikhail Lobanov](https://github.com/lobanov-m)
+* [Ming Yang](http://ufoym.com)
+* [Satya Krishna Gorti](https://github.com/satyakrishnagorti)
+* [Neo Chien](https://github.com/cchung100m)
+* [Wujie Zhou](https://github.com/eureka7mt)
+* [Ciyong Chen](https://github.com/ciyongch)
+* [Hao Li](https://github.com/lihaofd)
+* [Jin Huang](https://github.com/jinhuang415)
+* [Luobao Zou](https://github.com/luobao-intel)
+* [Pengxin Yuan](https://github.com/pengxin99)
+* [Rong Zhang](https://github.com/rongzha1/)
+* [Shu Zhang](https://github.com/Sherry-Zhang)
+* [Shufan Wu](https://github.com/juliusshufan)
+* [Wenting Jiang](https://github.com/wentingj)
+* [Xiaotao Chen](https://github.com/XiaotaoChen)
+* [Xinyu Chen](https://github.com/xinyu-intel)
+* [Zhennan Qin](https://github.com/ZhennanQin)
+* [Zhiyuan Huang](https://github.com/huangzhiyuan)
+* [Zak Jost](https://github.com/zjost)
+* [Nick Guletskii](https://github.com/nickguletskii)
+* [Shoubhik Bhattacharya](https://github.com/shoubhik)
+* [Rohit Srivastava](https://github.com/access2rohit)
+* [Caner Turkmen](https://github.com/canerturkmen)
+* [Disi A](https://github.com/adis300)
+
+Label Bot
+---------
+* [mxnet-label-bot](https://github.com/mxnet-label-bot)
+  - mxnet-label-bot provides users with the functionality to manage labels for Issues/Pull Requests on the repository
+  - To use me, comment:
+    - @mxnet-label-bot add [specify comma separated labels here]
+    - @mxnet-label-bot remove [specify comma separated labels here]
+    - @mxnet-label-bot update [specify comma separated labels here]  
+      (i.e. @mxnet-label-bot update [Bug, Python])
+  
+  - Available label names which are supported: [Labels](https://github.com/apache/incubator-mxnet/labels)
+  - For further details: [My Wiki Page](https://cwiki.apache.org/confluence/display/MXNET/Machine+Learning+Based+GitHub+Bot)

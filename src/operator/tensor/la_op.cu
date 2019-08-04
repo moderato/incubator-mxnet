@@ -19,10 +19,10 @@
 
 /*!
  * \file la_op.cu
- * \brief GPU-Operators for advanced linear algebra.
+ * \brief GPU implementation of Operators for advanced linear algebra.
  */
 #include "./la_op.h"
-#include "./la_op_inline.h"
+#include "./la_op-inl.h"
 
 namespace mxnet {
 namespace op {
@@ -63,11 +63,41 @@ NNVM_REGISTER_OP(_linalg_sumlogdiag)
 NNVM_REGISTER_OP(_backward_linalg_sumlogdiag)
 .set_attr<FCompute>("FCompute<gpu>", LaOpBackward<gpu, 2, 2, 2, 1, sumlogdiag_backward>);
 
+NNVM_REGISTER_OP(_linalg_extractdiag)
+.set_attr<FCompute>("FCompute<gpu>", LaOpForward<gpu, 2, 1, 1, 1, copydiag>);
+
+NNVM_REGISTER_OP(_backward_linalg_extractdiag)
+.set_attr<FCompute>("FCompute<gpu>", LaOpBackward<gpu, 1, 2, 1, 1, copydiag>);
+
+NNVM_REGISTER_OP(_linalg_makediag)
+.set_attr<FCompute>("FCompute<gpu>", LaOpForward<gpu, 1, 2, 1, 1, copydiag>);
+
+NNVM_REGISTER_OP(_backward_linalg_makediag)
+.set_attr<FCompute>("FCompute<gpu>", LaOpBackward<gpu, 2, 1, 1, 1, copydiag>);
+
+NNVM_REGISTER_OP(_linalg_extracttrian)
+.set_attr<FCompute>("FCompute<gpu>", LaOpForward<gpu, 2, 1, 1, 1, copytrian>);
+
+NNVM_REGISTER_OP(_backward_linalg_extracttrian)
+.set_attr<FCompute>("FCompute<gpu>", LaOpBackward<gpu, 1, 2, 1, 1, copytrian>);
+
+NNVM_REGISTER_OP(_linalg_maketrian)
+.set_attr<FCompute>("FCompute<gpu>", LaOpForward<gpu, 1, 2, 1, 1, copytrian>);
+
+NNVM_REGISTER_OP(_backward_linalg_maketrian)
+.set_attr<FCompute>("FCompute<gpu>", LaOpBackward<gpu, 2, 1, 1, 1, copytrian>);
+
 NNVM_REGISTER_OP(_linalg_potri)
 .set_attr<FCompute>("FCompute<gpu>", LaOpForward<gpu, 2, 2, 1, 1, potri>);
 
 NNVM_REGISTER_OP(_backward_linalg_potri)
 .set_attr<FCompute>("FCompute<gpu>", LaOpBackward<gpu, 2, 2, 3, 1, potri_backward>);
+
+NNVM_REGISTER_OP(_linalg_inverse)
+.set_attr<FCompute>("FCompute<gpu>", LaOpForward<gpu, 2, 2, 1, 1, inverse>);
+
+NNVM_REGISTER_OP(_backward_linalg_inverse)
+.set_attr<FCompute>("FCompute<gpu>", LaOpBackward<gpu, 2, 2, 2, 1, inverse_backward>);
 
 #if MXNET_USE_CUSOLVER == 1
 

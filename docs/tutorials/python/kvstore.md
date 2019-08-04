@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # Distributed Key-Value Store
 
 KVStore is a place for data sharing. Think of it as a single object shared
@@ -36,15 +53,11 @@ print(a.asnumpy())
 
 The data for pushing can be stored on any device. Furthermore, you can push multiple
 values into the same key, where KVStore will first sum all of these
-values and then push the aggregated value:
+values and then push the aggregated value. Here we will just demonstrate pushing a list of values on CPU.
+Please note summation only happens if the value list is longer than one
 
 ```python
-# The numbers used below assume 4 GPUs
-gpus = mx.test_utils.list_gpus()
-if len(gpus) > 1:
-    contexts = [mx.gpu(i) for i in gpus]
-else:
-    contexts = [mx.cpu(i) for i in range(4)]
+contexts = [mx.cpu(i) for i in range(4)]
 b = [mx.nd.ones(shape, ctx) for ctx in contexts]
 kv.push(3, b)
 kv.pull(3, out = a)
@@ -70,7 +83,6 @@ print(a.asnumpy())
 
 ```python
 kv.push(3, mx.nd.ones(shape))
-#
 kv.pull(3, out=a)
 print(a.asnumpy())
 ```

@@ -342,6 +342,25 @@ int MXEngineSetBulkSize(int bulk_size, int* out);
  */
 int MXGetGPUCount(int* out);
 
+/*!
+ * \brief get the free and total available memory on a GPU
+ *  Note: deprecated, use MXGetGPUMemoryInformation64().
+ * \param dev the GPU number to query
+ * \param free_mem pointer to the integer holding free GPU memory
+ * \param total_mem pointer to the integer holding total GPU memory
+ * \return 0 when success, -1 when failure happens
+ */
+int MXGetGPUMemoryInformation(int dev, int *out, int *out);
+
+/*!
+ * \brief get the free and total available memory on a GPU
+ * \param dev the GPU number to query
+ * \param free_mem pointer to the uint64_t holding free GPU memory
+ * \param total_mem pointer to the uint64_t holding total GPU memory
+ * \return 0 when success, -1 when failure happens
+ */
+int MXGetGPUMemoryInformation64(int dev, uint64_t *out, uint64_t *out);
+
 
 //-------------------------------------
 // Part 1: NDArray creation and deletion
@@ -621,9 +640,9 @@ int MXNDArrayReshape64(NDArrayHandle handle,
  * \param out_pdata pointer holder to get data pointer of the shape
  * \return 0 when success, -1 when failure happens
  */
-int MXNDArrayGetShape(NDArrayHandle handle,
-                                mx_uint *out_dim,
-                                const mx_uint **out_pdata);
+int MXNDArrayGetShapeEx(NDArrayHandle handle,
+                                int *out_dim,
+                                const int **out_pdata);
 /*!
  * \brief get the content of the data in NDArray
  * \param handle the handle to the ndarray
@@ -1270,21 +1289,21 @@ int MXSymbolGrad(SymbolHandle sym,
  * \param complete whether infer shape completes or more information is needed.
  * \return 0 when success, -1 when failure happens
  */
-int MXSymbolInferShape(SymbolHandle sym,
-                                 mx_uint num_args,
-                                 const char** in,
-                                 const mx_uint *in,
-                                 const mx_uint *in,
-                                 mx_uint *in_shape_size,
-                                 const mx_uint **in_shape_ndim,
-                                 const mx_uint ***in_shape_data,
-                                 mx_uint *out_shape_size,
-                                 const mx_uint **out_shape_ndim,
-                                 const mx_uint ***out_shape_data,
-                                 mx_uint *aux_shape_size,
-                                 const mx_uint **aux_shape_ndim,
-                                 const mx_uint ***aux_shape_data,
-                                 int *out);
+int MXSymbolInferShapeEx(SymbolHandle sym,
+                         mx_uint num_args,
+                         const char** in,
+                         const mx_uint *in,
+                         const int *in,
+                         mx_uint *in_shape_size,
+                         const int **in_shape_ndim,
+                         const int ***in_shape_data,
+                         mx_uint *out_shape_size,
+                         const int **out_shape_ndim,
+                         const int ***out_shape_data,
+                         mx_uint *aux_shape_size,
+                         const int **aux_shape_ndim,
+                         const int ***aux_shape_data,
+                         int *out);
 /*!
  * \brief partially infer shape of unknown input shapes given the known one.
  *
@@ -1309,21 +1328,21 @@ int MXSymbolInferShape(SymbolHandle sym,
  * \param complete whether infer shape completes or more information is needed.
  * \return 0 when success, -1 when failure happens
  */
-int MXSymbolInferShapePartial(SymbolHandle sym,
-                                 mx_uint num_args,
-                                 const char** in,
-                                 const mx_uint *in,
-                                 const mx_uint *in,
-                                 mx_uint *in_shape_size,
-                                 const mx_uint **in_shape_ndim,
-                                 const mx_uint ***in_shape_data,
-                                 mx_uint *out_shape_size,
-                                 const mx_uint **out_shape_ndim,
-                                 const mx_uint ***out_shape_data,
-                                 mx_uint *aux_shape_size,
-                                 const mx_uint **aux_shape_ndim,
-                                 const mx_uint ***aux_shape_data,
-                                 int *out);
+int MXSymbolInferShapePartialEx(SymbolHandle sym,
+                                mx_uint num_args,
+                                const char** in,
+                                const mx_uint *in,
+                                const int *in,
+                                mx_uint *in_shape_size,
+                                const int **in_shape_ndim,
+                                const int ***in_shape_data,
+                                mx_uint *out_shape_size,
+                                const int **out_shape_ndim,
+                                const int ***out_shape_data,
+                                mx_uint *aux_shape_size,
+                                const int **aux_shape_ndim,
+                                const int ***aux_shape_data,
+                                int *out);
 
 /*!
  * \brief infer type of unknown input types given the known one.
@@ -1516,40 +1535,40 @@ int MXExecutorBindEX(SymbolHandle symbol_handle,
                                ExecutorHandle shared_exec,
                                ExecutorHandle *out);
 
-int MXExecutorSimpleBind(SymbolHandle symbol_handle,
-                         int dev_type,
-                         int dev_id,
-                         const mx_uint num_g2c_keys,
-                         const char** in, // g2c_keys,
-                         const int* in, // g2c_dev_types,
-                         const int* in, // g2c_dev_ids,
-                         const mx_uint provided_grad_req_list_len,
-                         const char** in, // provided_grad_req_names,
-                         const char** in, // provided_grad_req_types,
-                         const mx_uint num_provided_arg_shapes,
-                         const char** in, // provided_arg_shape_names,
-                         const mx_uint* in, // provided_arg_shape_data,
-                         const mx_uint* in, // provided_arg_shape_idx,
-                         const mx_uint num_provided_arg_dtypes,
-                         const char** in, // provided_arg_dtype_names,
-                         const int* in, // provided_arg_dtypes,
-                         const mx_uint num_provided_arg_stypes,
-                         const char** in, // provided_arg_stype_names,
-                         const int* in, // provided_arg_stypes,
-                         const mx_uint num_shared_arg_names,
-                         const char** in, // shared_arg_name_list,
-                         int* shared_buffer_len,
-                         const char** shared_buffer_name_list,
-                         NDArrayHandle* shared_buffer_handle_list,
-                         const char*** updated_shared_buffer_name_list,
-                         NDArrayHandle** updated_shared_buffer_handle_list,
-                         mx_uint* num_in_args,
-                         NDArrayHandle** in_args,
-                         NDArrayHandle** arg_grads,
-                         mx_uint* num_aux_states,
-                         NDArrayHandle** aux_states,
-                         ExecutorHandle shared_exec_handle,
-                         ExecutorHandle* out
+int MXExecutorSimpleBindEx(SymbolHandle symbol_handle,
+                           int dev_type,
+                           int dev_id,
+                           const mx_uint num_g2c_keys,
+                           const char** in, // g2c_keys,
+                           const int* in, // g2c_dev_types,
+                           const int* in, // g2c_dev_ids,
+                           const mx_uint provided_grad_req_list_len,
+                           const char** in, // provided_grad_req_names,
+                           const char** in, // provided_grad_req_types,
+                           const mx_uint num_provided_arg_shapes,
+                           const char** in, // provided_arg_shape_names,
+                           const int* in, // provided_arg_shape_data,
+                           const mx_uint* in, // provided_arg_shape_idx,
+                           const mx_uint num_provided_arg_dtypes,
+                           const char** in, // provided_arg_dtype_names,
+                           const int* in, // provided_arg_dtypes,
+                           const mx_uint num_provided_arg_stypes,
+                           const char** in, // provided_arg_stype_names,
+                           const int* in, // provided_arg_stypes,
+                           const mx_uint num_shared_arg_names,
+                           const char** in, // shared_arg_name_list,
+                           int* shared_buffer_len,
+                           const char** shared_buffer_name_list,
+                           NDArrayHandle* shared_buffer_handle_list,
+                           const char*** updated_shared_buffer_name_list,
+                           NDArrayHandle** updated_shared_buffer_handle_list,
+                           mx_uint* num_in_args,
+                           NDArrayHandle** in_args,
+                           NDArrayHandle** arg_grads,
+                           mx_uint* num_aux_states,
+                           NDArrayHandle** aux_states,
+                           ExecutorHandle shared_exec_handle,
+                           ExecutorHandle* out
 );
 
 /*!
@@ -1573,25 +1592,25 @@ int MXExecutorSimpleBind(SymbolHandle symbol_handle,
  * \param out output executor handle
  * \return a new executor
  */
-int MXExecutorReshape(int partial_shaping,
-                                int allow_up_sizing,
-                                int dev_type,
-                                int dev_id,
-                                mx_uint num_map_keys,
-                                const char** in,
-                                const int* in,
-                                const int* in,
-                                const mx_uint num_provided_arg_shapes,
-                                const char** in,
-                                const mx_uint* in,
-                                const mx_uint* in,
-                                mx_uint* couple_out_size,
-                                NDArrayHandle** out_first_array,
-                                NDArrayHandle** out_second_array,
-                                mx_uint* out_size,
-                                NDArrayHandle** out_array,
-                                ExecutorHandle shared_exec,
-                                ExecutorHandle *out);
+int MXExecutorReshapeEx(int partial_shaping,
+                        int allow_up_sizing,
+                        int dev_type,
+                        int dev_id,
+                        mx_uint num_map_keys,
+                        const char** in,
+                        const int* in,
+                        const int* in,
+                        const mx_uint num_provided_arg_shapes,
+                        const char** in,
+                        const int* in,
+                        const mx_uint* in,
+                        mx_uint* couple_out_size,
+                        NDArrayHandle** out_first_array,
+                        NDArrayHandle** out_second_array,
+                        mx_uint* out_size,
+                        NDArrayHandle** out_array,
+                        ExecutorHandle shared_exec,
+                        ExecutorHandle *out);
 
 /*!
  * \brief set a call back to notify the completion of operation
@@ -1599,6 +1618,7 @@ int MXExecutorReshape(int partial_shaping,
 int MXExecutorSetMonitorCallback(ExecutorHandle handle,
                                            ExecutorMonitorCallback callback,
                                            void* callback_handle);
+
 //--------------------------------------------
 // Part 5: IO Interface
 //--------------------------------------------
@@ -1816,6 +1836,24 @@ int MXKVStorePullRowSparseEx(KVStoreHandle handle,
                                        NDArrayHandle* in,
                                        NDArrayHandle* in,
                                        int priority);
+
+/*!
+ * \brief pull a list of (key, value) pairs from the kvstore, where each key is a string
+ * \param handle handle to the kvstore
+ * \param num the number of key-value pairs
+ * \param keys the list of keys
+ * \param vals the list of values
+ * \param priority the priority of the action
+ * \param ignore_sparse whether to ignore sparse arrays in the request
+ * \return 0 when success, -1 when failure happens
+ */
+int MXKVStorePullWithSparseEx(KVStoreHandle handle,
+                                        mx_uint num,
+                                        const char** in,
+                                        NDArrayHandle* in,
+                                        int priority,
+                                        bool ignore_sparse);
+
 /*!
  * \brief user-defined updater for the kvstore
  * It's this updater's responsibility to delete \a recv and \a local
@@ -2130,4 +2168,3 @@ int MXRtcCudaKernelCall(CudaKernelHandle handle, int dev_id, void** cuda_kernel_
                                   mx_uint grid_dim_z, mx_uint block_dim_x,
                                   mx_uint block_dim_y, mx_uint block_dim_z,
                                   mx_uint shared_mem);
-

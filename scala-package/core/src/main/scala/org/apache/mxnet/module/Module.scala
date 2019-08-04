@@ -45,11 +45,12 @@ class Module(symbolVar: Symbol,
              fixedParamNames: Option[Set[String]] = None) extends BaseModule {
   private val logger = LoggerFactory.getLogger(classOf[Module])
 
-  require(symbolVar != null)
+  require(symbolVar != null, "Undefined symbol")
   this.symbol = symbolVar
 
   private val workLoads = workLoadList.getOrElse(contexts.map(_ => 1f).toIndexedSeq)
-  require(workLoads.size == contexts.length)
+  require(workLoads.size == contexts.length,
+    s"workloads size (${workLoads.size}) do not match number of contexts ${contexts.length}")
 
   private val labelNameList = if (labelNames == null) IndexedSeq.empty[String] else labelNames
 
@@ -71,17 +72,17 @@ class Module(symbolVar: Symbol,
   private var labelShapesVar: Option[IndexedSeq[DataDesc]] = None
 
   override def dataShapes: IndexedSeq[DataDesc] = {
-    require(binded)
+    require(binded, "bind() must be called first.")
     dataShapesVar
   }
 
   override def labelShapes: IndexedSeq[DataDesc] = {
-    require(binded)
+    require(binded, "bind() must be called first.")
     labelShapesVar.orNull
   }
 
   override def outputShapes: IndexedSeq[(String, Shape)] = {
-    require(binded)
+    require(binded, "bind() must be called first.")
     execGroup.getOutputShapes
   }
 
@@ -93,7 +94,7 @@ class Module(symbolVar: Symbol,
    * `NDArray`) mapping.
    */
   override def getParams: (Map[String, NDArray], Map[String, NDArray]) = {
-    require(binded && paramsInitialized)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
     if (paramsDirty) {
       syncParamsFromDevices()
     }
@@ -120,36 +121,35 @@ class Module(symbolVar: Symbol,
                           allowMissing: Boolean = false,
                           forceInit: Boolean = false,
                           allowExtra: Boolean = false): Unit = {
-    if (paramsInitialized && !forceInit) {
-      return
+    if (!paramsInitialized || forceInit) {
+      require(binded, "call bind before initializing the parameters")
+
+      if (this.argParams == null) {
+        val paramArrays =
+          execGroup.paramArrays.map(nds => NDArray.zeros(nds(0).shape, dtype = nds(0).dtype))
+        this.argParams = this.paramNames.zip(paramArrays).toMap
+      }
+
+      if (this.auxParams == null) {
+        val auxArrays =
+          execGroup.auxArrays.map(nds => NDArray.zeros(nds(0).shape, dtype = nds(0).dtype))
+        this.auxParams = this.auxNames.zip(auxArrays).toMap
+      }
+
+      this.argParams.foreach { case (name, arr) =>
+        impl(name, arr, allowMissing, Option(initializer), argParams)
+      }
+
+      this.auxParams.foreach { case (name, arr) =>
+        impl(name, arr, allowMissing, Option(initializer), auxParams)
+      }
+
+      this.paramsInitialized = true
+      this.paramsDirty = false
+
+      // copy the initialized parameters to devices
+      this.execGroup.setParams(this.argParams, this.auxParams, allowExtra = allowExtra)
     }
-    require(binded, "call bind before initializing the parameters")
-
-    if (this.argParams == null) {
-      val paramArrays =
-        execGroup.paramArrays.map(nds => NDArray.zeros(nds(0).shape, dtype = nds(0).dtype))
-      this.argParams = this.paramNames.zip(paramArrays).toMap
-    }
-
-    if (this.auxParams == null) {
-      val auxArrays =
-        execGroup.auxArrays.map(nds => NDArray.zeros(nds(0).shape, dtype = nds(0).dtype))
-      this.auxParams = this.auxNames.zip(auxArrays).toMap
-    }
-
-    this.argParams.foreach { case (name, arr) =>
-      impl(name, arr, allowMissing, Option(initializer), argParams)
-    }
-
-    this.auxParams.foreach { case (name, arr) =>
-      impl(name, arr, allowMissing, Option(initializer), auxParams)
-    }
-
-    this.paramsInitialized = true
-    this.paramsDirty = false
-
-    // copy the initialized parameters to devices
-    this.execGroup.setParams(this.argParams, this.auxParams, allowExtra = allowExtra)
   }
 
   // Internal helper for parameter initialization
@@ -245,63 +245,64 @@ class Module(symbolVar: Symbol,
 
     if (binded) {
       logger.warn("Already binded, ignoring bind()")
-      return
-    }
-
-    this.forTraining = forTraining
-    this.inputsNeedGrad = inputsNeedGrad
-    this.binded = true
-
-    if (!forTraining) {
-      require(!inputsNeedGrad)
     } else {
-      // this is not True, as some module might not contains a loss function
-      // that consumes the labels
-      // require(labelShapes != None)
+      this.forTraining = forTraining
+      this.inputsNeedGrad = inputsNeedGrad
+      this.binded = true
+
+      if (!forTraining) {
+        require(!inputsNeedGrad, "Invalid inputsNeedGrad (cannot be true if not forTraining)")
+      } else {
+        // this is not True, as some module might not contains a loss function
+        // that consumes the labels
+        // require(labelShapes != None)
+      }
+
+      this.dataShapesVar = dataShapes
+      this.labelShapesVar = labelShapes
+
+      val sharedGroup =
+        sharedModule.map(sharedModuleInst => {
+          require(sharedModuleInst.binded && sharedModuleInst.paramsInitialized,
+            s"bind() and initParams() must be called first on shared module.")
+          sharedModuleInst.execGroup
+        })
+
+      val inputTypes = this.dataShapesVar.map(dataDesc => (dataDesc.name, dataDesc.dtype)).toMap ++
+        labelShapes.map(shapes => shapes.map(dataDesc => (dataDesc.name, dataDesc.dtype)).toMap)
+          .getOrElse(Map.empty[String, DType])
+
+      execGroup = new Builder(symbol, contexts, paramNames)
+        .setWorkLoadList(workLoads)
+        .setDataShapes(dataShapes)
+        .setLabelShapes(labelShapes.orNull)
+        .setForTraining(forTraining)
+        .setInputsNeedGrad(inputsNeedGrad)
+        .setSharedGroup(sharedGroup.orNull)
+        .setFixedParamNames(fixedParamNames.orNull)
+        .setGradReq(gradReq)
+        .setInputTypes(inputTypes)
+        .build()
+
+      if (sharedModule.isDefined) {
+        paramsInitialized = true
+        argParams = sharedModule.get.argParams
+        auxParams = sharedModule.get.auxParams
+      } else if (paramsInitialized) {
+        // if the parameters are already initialized, we are re-binding
+        // so automatically copy the already initialized params
+        execGroup.setParams(argParams, auxParams)
+      }
+
+      sharedModule.foreach {
+        case sharedModuleInst: Module =>
+          if (sharedModuleInst.optimizerInitialized) {
+            borrowOptimizer(sharedModuleInst)
+          }
+        case _ =>
+      }
     }
 
-    this.dataShapesVar = dataShapes
-    this.labelShapesVar = labelShapes
-
-    val sharedGroup =
-      sharedModule.map(sharedModuleInst => {
-        require(sharedModuleInst.binded && sharedModuleInst.paramsInitialized)
-        sharedModuleInst.execGroup
-      })
-
-    val inputTypes = this.dataShapesVar.map(dataDesc => (dataDesc.name, dataDesc.dtype)).toMap ++
-      labelShapes.map(shapes => shapes.map(dataDesc => (dataDesc.name, dataDesc.dtype)).toMap)
-                 .getOrElse(Map.empty[String, DType])
-
-    execGroup = new Builder(symbol, contexts, paramNames)
-      .setWorkLoadList(workLoads)
-      .setDataShapes(dataShapes)
-      .setLabelShapes(labelShapes.orNull)
-      .setForTraining(forTraining)
-      .setInputsNeedGrad(inputsNeedGrad)
-      .setSharedGroup(sharedGroup.orNull)
-      .setFixedParamNames(fixedParamNames.orNull)
-      .setGradReq(gradReq)
-      .setInputTypes(inputTypes)
-      .build()
-
-    if (sharedModule.isDefined) {
-      paramsInitialized = true
-      argParams = sharedModule.get.argParams
-      auxParams = sharedModule.get.auxParams
-    } else if (paramsInitialized) {
-      // if the parameters are already initialized, we are re-binding
-      // so automatically copy the already initialized params
-      execGroup.setParams(argParams, auxParams)
-    }
-
-    sharedModule.foreach {
-      case sharedModuleInst: Module =>
-        if (sharedModuleInst.optimizerInitialized) {
-          borrowOptimizer(sharedModuleInst)
-        }
-      case _ =>
-    }
   }
 
   /**
@@ -338,7 +339,7 @@ class Module(symbolVar: Symbol,
    */
   def reshape(dataShapes: IndexedSeq[DataDesc],
               labelShapes: Option[IndexedSeq[DataDesc]] = None): Unit = {
-    require(this.binded)
+    require(this.binded, "bind() must be called first.")
     val (tdataShapes, tlabelShapes) = this._parseDataDesc(
       this.dataNames, this.labelNames, dataShapes, labelShapes)
     this.dataShapesVar = tdataShapes
@@ -357,7 +358,7 @@ class Module(symbolVar: Symbol,
    */
   def initOptimizer(kvstore: String = "local", optimizer: Optimizer = new SGD(),
                     resetOptimizer: Boolean = true, forceInit: Boolean = false): Unit = {
-    require(binded && paramsInitialized)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
     if (optimizerInitialized && !forceInit) {
       logger.warn("optimizer already initialized, ignoring ...")
     } else {
@@ -414,7 +415,8 @@ class Module(symbolVar: Symbol,
    * @param sharedModule
    */
   def borrowOptimizer(sharedModule: Module): Unit = {
-    require(sharedModule.optimizerInitialized)
+    require(sharedModule.optimizerInitialized,
+      "initOptimizer() must be called first for shared module")
     optimizer = sharedModule.optimizer
     kvstore = sharedModule.kvstore
     updateOnKVStore = sharedModule.updateOnKVStore
@@ -428,19 +430,19 @@ class Module(symbolVar: Symbol,
    * @param isTrain Default is `None`, which means `is_train` takes the value of `for_training`.
    */
   def forward(dataBatch: DataBatch, isTrain: Option[Boolean] = None): Unit = {
-    require(binded && paramsInitialized)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
     val currDataShapes = this.dataShapes.map(_.shape)
     val newDataShapes = dataBatch.data.map(_.shape)
     if (currDataShapes != newDataShapes) {
       val newDShapes: IndexedSeq[DataDesc] =
-        if (dataBatch.provideData != null) dataBatch.provideData
+        if (dataBatch.provideDataDesc != null) dataBatch.provideDataDesc
         else {
           this.dataShapes.zip(newDataShapes).map { case (i, shape) =>
             DataDesc(i.name, shape, i.dtype, i.layout)
           }
         }
       val newLShapes: Option[IndexedSeq[DataDesc]] =
-        if (dataBatch.provideLabel != null) Some(dataBatch.provideLabel)
+        if (dataBatch.provideLabelDesc != null) Some(dataBatch.provideLabelDesc)
         else if (dataBatch.label != null && dataBatch.label.length > 0
             && this.labelShapes != null) {
           Some(this.labelShapes.zip(dataBatch.label).map { case (i, j) =>
@@ -459,20 +461,21 @@ class Module(symbolVar: Symbol,
    *                 on outputs that are not a loss function.
    */
   def backward(outGrads: Array[NDArray] = null): Unit = {
-    require(binded && paramsInitialized)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
     execGroup.backward(outGrads)
   }
 
   // Update parameters according to the installed optimizer and the gradients computed
   // in the previous forward-backward batch.
   def update(): Unit = {
-    require(binded && paramsInitialized && optimizerInitialized)
+    require(binded && paramsInitialized && optimizerInitialized,
+      "bind(), initParams() and initOptimizer() must be called first.")
     paramsDirty = true
     if (updateOnKVStore) {
       Model.updateParamsOnKVStore(execGroup.paramArrays,
         execGroup.gradArrays, kvstore, execGroup.paramNames)
     } else {
-      require(updater != None)
+      require(updater.isDefined, "Undefined updater")
       Model.updateParams(execGroup.paramArrays,
         execGroup.gradArrays, updater.orNull, contexts.length, execGroup.paramNames, kvstore)
     }
@@ -482,11 +485,11 @@ class Module(symbolVar: Symbol,
    * Get outputs of the previous forward computation.
    * @return In the case when data-parallelism is used,
    *         the outputs will be collected from multiple devices.
-   *         The results will look like `[[out1_dev1, out1_dev2], [out2_dev1, out2_dev2]]`,
+   *         The results will look like `[ [out1_dev1, out1_dev2], [out2_dev1, out2_dev2] ]`,
    *         those `NDArray` might live on different devices.
    */
   def getOutputs(): IndexedSeq[IndexedSeq[NDArray]] = {
-    require(binded && paramsInitialized)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
     execGroup.getOutputs()
   }
 
@@ -498,7 +501,7 @@ class Module(symbolVar: Symbol,
    *         The results will look like `[out1, out2]`
    */
   def getOutputsMerged(): IndexedSeq[NDArray] = {
-    require(binded && paramsInitialized)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
     execGroup.getOutputsMerged()
   }
 
@@ -506,11 +509,12 @@ class Module(symbolVar: Symbol,
    * Get the gradients to the inputs, computed in the previous backward computation.
    * @return In the case when data-parallelism is used,
    *         the grads will be collected from multiple devices.
-   *         The results will look like `[[grad1_dev1, grad1_dev2], [grad2_dev1, grad2_dev2]]`,
+   *         The results will look like `[ [grad1_dev1, grad1_dev2], [grad2_dev1, grad2_dev2] ]`,
    *         those `NDArray` might live on different devices.
    */
   def getInputGrads(): IndexedSeq[IndexedSeq[NDArray]] = {
-    require(binded && paramsInitialized && inputsNeedGrad)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
+    require(inputsNeedGrad, "Call to getInputGrads() but inputsNeedGrad is false")
     execGroup.getInputGrads()
   }
 
@@ -522,7 +526,8 @@ class Module(symbolVar: Symbol,
    *         The results will look like `[grad1, grad2]`
    */
   def getInputGradsMerged(): IndexedSeq[NDArray] = {
-    require(binded && paramsInitialized && inputsNeedGrad)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
+    require(inputsNeedGrad, "Call to getInputGradsMerged() but inputsNeedGrad is false")
     execGroup.getInputGradsMerged()
   }
 
@@ -544,7 +549,7 @@ class Module(symbolVar: Symbol,
 
   // Install monitor on all executors
   def installMonitor(monitor: Monitor): Unit = {
-    require(binded)
+    require(binded, "bind() must be called first.")
     execGroup.installMonitor(monitor)
   }
 

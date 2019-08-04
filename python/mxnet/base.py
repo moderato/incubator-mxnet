@@ -16,7 +16,7 @@
 # under the License.
 
 # coding: utf-8
-# pylint: disable=invalid-name, no-member, trailing-comma-tuple, bad-mcs-classmethod-argument
+# pylint: disable=invalid-name, no-member, trailing-comma-tuple, bad-mcs-classmethod-argument, unnecessary-pass, wrong-import-position
 """ctypes library of mxnet and helper functions."""
 from __future__ import absolute_import
 
@@ -26,7 +26,7 @@ import os
 import sys
 import inspect
 import platform
-import numpy as np
+import numpy as _np
 
 from . import libinfo
 
@@ -44,8 +44,8 @@ except NameError:
     long = int
 # pylint: enable=pointless-statement
 
-integer_types = (int, long, np.int32, np.int64)
-numeric_types = (float, int, long, np.generic)
+integer_types = (int, long, _np.int32, _np.int64)
+numeric_types = (float, int, long, _np.generic)
 string_types = basestring,
 
 if sys.version_info[0] > 2:
@@ -165,8 +165,7 @@ class _MXClassPropertyDescriptor(object):
 
 class _MXClassPropertyMetaClass(type):
     def __setattr__(cls, key, value):
-        if key in cls.__dict__:
-            obj = cls.__dict__.get(key)
+        obj = cls.__dict__.get(key)
         if obj and isinstance(obj, _MXClassPropertyDescriptor):
             return obj.__set__(cls, value)
 
@@ -214,10 +213,11 @@ __version__ = libinfo.__version__
 _LIB = _load_lib()
 
 # type definitions
+mx_int = ctypes.c_int
 mx_uint = ctypes.c_uint
 mx_float = ctypes.c_float
 mx_float_p = ctypes.POINTER(mx_float)
-mx_real_t = np.float32
+mx_real_t = _np.float32
 NDArrayHandle = ctypes.c_void_p
 FunctionHandle = ctypes.c_void_p
 OpHandle = ctypes.c_void_p
@@ -232,6 +232,7 @@ RtcHandle = ctypes.c_void_p
 CudaModuleHandle = ctypes.c_void_p
 CudaKernelHandle = ctypes.c_void_p
 ProfileHandle = ctypes.c_void_p
+DLPackHandle = ctypes.c_void_p
 
 
 #----------------------------
@@ -455,7 +456,7 @@ def ctypes2numpy_shared(cptr, shape):
     for s in shape:
         size *= s
     dbuffer = (mx_float * size).from_address(ctypes.addressof(cptr.contents))
-    return np.frombuffer(dbuffer, dtype=np.float32).reshape(shape)
+    return _np.frombuffer(dbuffer, dtype=_np.float32).reshape(shape)
 
 
 def build_param_doc(arg_names, arg_types, arg_descs, remove_dup=True):
@@ -560,7 +561,7 @@ def _as_list(obj):
         return [obj]
 
 
-_OP_NAME_PREFIX_LIST = ['_contrib_', '_linalg_', '_sparse_', '_image_']
+_OP_NAME_PREFIX_LIST = ['_contrib_', '_linalg_', '_sparse_', '_image_', '_random_']
 
 
 def _get_op_name_prefix(op_name):
@@ -616,9 +617,13 @@ def _init_op_module(root_namespace, module_name, make_op_func):
         op_name_prefix = _get_op_name_prefix(name)
         module_name_local = module_name
         if len(op_name_prefix) > 0:
-            func_name = name[len(op_name_prefix):]
-            cur_module = submodule_dict[op_name_prefix]
-            module_name_local = "%s.%s.%s" % (root_namespace, module_name, op_name_prefix[1:-1])
+            if op_name_prefix != '_random_' or name.endswith('_like'):
+                func_name = name[len(op_name_prefix):]
+                cur_module = submodule_dict[op_name_prefix]
+                module_name_local = "%s.%s.%s" % (root_namespace, module_name, op_name_prefix[1:-1])
+            else:
+                func_name = name
+                cur_module = module_internal
         elif name.startswith('_'):
             func_name = name
             cur_module = module_internal
@@ -726,3 +731,11 @@ def _generate_op_module_signature(root_namespace, module_name, op_code_gen_func)
     module_op_file.close()
     write_all_str(module_internal_file, module_internal_all)
     module_internal_file.close()
+
+ctypes.pythonapi.PyCapsule_New.restype = ctypes.py_object
+ctypes.pythonapi.PyCapsule_GetPointer.restype = ctypes.c_void_p
+
+from .runtime import Features
+if Features().is_enabled("TVM_OP"):
+    _LIB_TVM_OP = libinfo.find_lib_path("libtvmop")
+    check_call(_LIB.MXLoadTVMOp(c_str(_LIB_TVM_OP[0])))

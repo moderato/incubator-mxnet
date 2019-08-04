@@ -614,9 +614,6 @@ class OperatorSuite extends FunSuite with BeforeAndAfterAll
     val embed = Symbol.Embedding(name = "embed")()(
       Map("data" -> data, "input_dim" -> inDim, "output_dim" -> outDim))
     // TODO
-    // scalastyle:off println
-    println(s"Embeded symbol: ${embed.toJson}")
-    // scalastyle:on println
   }
 
   // check ops handle duplicate input correctly.
@@ -697,8 +694,8 @@ class OperatorSuite extends FunSuite with BeforeAndAfterAll
   }
 
   test("maximum") {
-    val data1 = Symbol.Variable("data")
-    val data2 = Symbol.Variable("data")
+    val data1 = Symbol.Variable("data1")
+    val data2 = Symbol.Variable("data2")
     val shape = Shape(3, 4)
     val dataTmp1 = Random.uniform(0, 100, shape)
     val dataTmp2 = Random.uniform(0, 100, shape)
@@ -715,8 +712,8 @@ class OperatorSuite extends FunSuite with BeforeAndAfterAll
   }
 
   test("minimum") {
-    val data1 = Symbol.Variable("data")
-    val data2 = Symbol.Variable("data")
+    val data1 = Symbol.Variable("data1")
+    val data2 = Symbol.Variable("data2")
     val shape = Shape(3, 4)
     val dataTmp1 = Random.uniform(0, 100, shape)
     val dataTmp2 = Random.uniform(0, 100, shape)
@@ -983,9 +980,6 @@ class OperatorSuite extends FunSuite with BeforeAndAfterAll
   test("batch norm") {
     val data = Symbol.Variable("data")
     val test = Symbol.BatchNorm(name = "bn")()(Map("data" -> data, "fix_gamma" -> "False"))
-    // scalastyle:off println
-    println(s"BatchNorm: ${test.toJson}")
-    // scalastyle:on println
     // TODO: check numeric gradient
   }
 

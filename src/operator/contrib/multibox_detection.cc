@@ -62,8 +62,8 @@ inline void TransformLocations(DType *out, const DType *anchors,
   DType ph = loc_pred[3];
   DType ox = px * vx * aw + ax;
   DType oy = py * vy * ah + ay;
-  DType ow = exp(pw * vw) * aw / 2;
-  DType oh = exp(ph * vh) * ah / 2;
+  DType ow = std::exp(pw * vw) * aw / 2;
+  DType oh = std::exp(ph * vh) * ah / 2;
   out[0] = clip ? std::max(DType(0), std::min(DType(1), ox - ow)) : (ox - ow);
   out[1] = clip ? std::max(DType(0), std::min(DType(1), oy - oh)) : (oy - oh);
   out[2] = clip ? std::max(DType(0), std::min(DType(1), ox + ow)) : (ox + ow);
@@ -87,7 +87,7 @@ inline void MultiBoxDetectionForward(const Tensor<cpu, 3, DType> &out,
                                      const Tensor<cpu, 3, DType> &temp_space,
                                      const float threshold,
                                      const bool clip,
-                                     const nnvm::Tuple<float> &variances,
+                                     const mxnet::Tuple<float> &variances,
                                      const float nms_threshold,
                                      const bool force_suppress,
                                      const int nms_topk) {
@@ -98,8 +98,7 @@ inline void MultiBoxDetectionForward(const Tensor<cpu, 3, DType> &out,
   const DType *p_anchor = anchors.dptr_;
 
   const int omp_threads = mxnet::engine::OpenMP::Get()->GetRecommendedOMPThreadCount();
-  std::vector<DType> outputs;
-  outputs.reserve(num_anchors * 6);
+  std::vector<DType> outputs(num_anchors * 6);
   for (int nbatch = 0; nbatch < num_batches; ++nbatch) {
     const DType *p_cls_prob = cls_prob.dptr_ + nbatch * num_classes * num_anchors;
     const DType *p_loc_pred = loc_pred.dptr_ + nbatch * num_anchors * 4;
@@ -174,7 +173,6 @@ inline void MultiBoxDetectionForward(const Tensor<cpu, 3, DType> &out,
     }
 
     // apply nms
-#pragma omp parallel for num_threads(omp_threads)
     for (int i = 0; i < nkeep; ++i) {
       int offset_i = i * 6;
       if (p_out[offset_i] < 0) continue;  // skip eliminated
@@ -198,7 +196,7 @@ namespace mxnet {
 namespace op {
 template<>
 Operator *CreateOp<cpu>(MultiBoxDetectionParam param, int dtype) {
-  Operator *op = NULL;
+  Operator *op = nullptr;
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     op = new MultiBoxDetectionOp<cpu, DType>(param);
   });
@@ -206,9 +204,9 @@ Operator *CreateOp<cpu>(MultiBoxDetectionParam param, int dtype) {
 }
 
 Operator* MultiBoxDetectionProp::CreateOperatorEx(Context ctx,
-                                                  std::vector<TShape> *in_shape,
+                                                  mxnet::ShapeVector *in_shape,
                                                   std::vector<int> *in_type) const {
-  std::vector<TShape> out_shape, aux_shape;
+  mxnet::ShapeVector out_shape, aux_shape;
   std::vector<int> out_type, aux_type;
   CHECK(InferShape(in_shape, &out_shape, &aux_shape));
   CHECK(InferType(in_type, &out_type, &aux_type));

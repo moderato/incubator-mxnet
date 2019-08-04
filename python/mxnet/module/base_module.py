@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=fixme, too-many-arguments, too-many-locals
+# pylint: disable=fixme, too-many-arguments, too-many-locals, no-else-raise
 # pylint: disable=too-many-public-methods, too-many-branches, too-many-lines
 """`BaseModule` defines an API for modules."""
 
@@ -278,8 +278,8 @@ class BaseModule(object):
     def iter_predict(self, eval_data, num_batch=None, reset=True, sparse_row_id_fn=None):
         """Iterates over predictions.
 
-        Example Usage:
-        ----------
+        Examples
+        --------
         >>> for pred, i_batch, batch in module.iter_predict(eval_data):
         ...     # pred is a list of outputs from the module
         ...     # i_batch is a integer
@@ -543,7 +543,7 @@ class BaseModule(object):
                     monitor.toc_print()
 
                 if end_of_batch:
-                    eval_name_vals = eval_metric.get_name_value()
+                    eval_name_vals = eval_metric.get_global_name_value()
 
                 if batch_end_callback is not None:
                     batch_end_params = BatchEndParam(epoch=epoch, nbatch=nbatch,
@@ -619,7 +619,7 @@ class BaseModule(object):
     # Parameters of a module
     ################################################################################
     def get_params(self):
-        """Gets parameters, those are potentially copies of the the actual parameters used
+        """Gets parameters, those are potentially copies of the actual parameters used
         to do computation on the device.
 
         Returns

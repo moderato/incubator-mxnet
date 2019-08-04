@@ -18,7 +18,7 @@
 (ns org.apache.clojure-mxnet.symbol
   (:refer-clojure :exclude [* - + > >= < <= / cast concat identity flatten load max
                             min repeat reverse set sort take to-array empty sin
-                            get apply shuffle])
+                            get apply shuffle ref])
   (:require [org.apache.clojure-mxnet.base :as base]
             [org.apache.clojure-mxnet.context :as mx-context]
             [org.apache.clojure-mxnet.executor :as ex]
@@ -144,7 +144,7 @@
    which must be known from the rest of the net."
   ([start {:keys [step repeat dtype]
            :or {step (float 1) repeat (int 1) dtype base/MX_REAL_TYPE}
-          :as opts}]
+           :as opts}]
    (Symbol/arange (float start) ($/option nil) step repeat true nil dtype))
   ([start]
    (arange-with-inference start {})))

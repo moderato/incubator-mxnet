@@ -23,6 +23,12 @@ import org.slf4j.LoggerFactory
 
 private[infer] trait MXNetHandler {
 
+  /**
+    * Executes a function within a thread-safe executor
+    * @param f The function to execute
+    * @tparam T The return type of the function
+    * @return Returns the result of the function f
+    */
   def execute[T](f: => T): T
 
   val executor: ExecutorService
@@ -31,7 +37,11 @@ private[infer] trait MXNetHandler {
 
 private[infer] object MXNetHandlerType extends Enumeration {
 
+  /**
+    * The internal type of the MXNetHandlerType enumeration
+    */
   type MXNetHandlerType = Value
+
   val SingleThreadHandler = Value("MXNetSingleThreadHandler")
   val OneThreadPerModelHandler = Value("MXNetOneThreadPerModelHandler")
 }
@@ -39,8 +49,7 @@ private[infer] object MXNetHandlerType extends Enumeration {
 private[infer] class MXNetThreadPoolHandler(numThreads: Int = 1)
   extends MXNetHandler {
 
-  require(numThreads > 0, "numThreads should be a positive number, you passed:%d".
-    format(numThreads))
+  require(numThreads > 0, s"Invalid numThreads $numThreads")
 
   private val logger = LoggerFactory.getLogger(classOf[MXNetThreadPoolHandler])
   private var threadCount: Int = 0
@@ -94,6 +103,10 @@ private[infer] object MXNetSingleThreadHandler extends MXNetThreadPoolHandler(1)
 
 private[infer] object MXNetHandler {
 
+  /**
+    * Creates a handler based on the handlerType
+    * @return A ThreadPool or Thread Handler
+    */
   def apply(): MXNetHandler = {
     if (handlerType == MXNetHandlerType.OneThreadPerModelHandler) {
       new MXNetThreadPoolHandler(1)

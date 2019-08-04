@@ -54,7 +54,8 @@ private[mxnet] class DataParallelExecutorManager(private val symbol: Symbol,
   if (workLoadList == null) {
     workLoadList = Seq.fill(numDevice)(1f)
   }
-  require(workLoadList.size == numDevice, "Invalid settings for work load.")
+  require(workLoadList.size == numDevice, "Invalid settings for work load. " +
+    s"Size (${workLoadList.size}) should match num devices ($numDevice)")
 
   private val slices = ExecutorManager.splitInputSlice(trainData.batchSize, workLoadList)
 
@@ -212,13 +213,13 @@ private[mxnet] object ExecutorManager {
   private[mxnet] def checkArguments(symbol: Symbol): Unit = {
     val argNames = symbol.listArguments()
     require(argNames.toSet.size == argNames.length,
-      "Find duplicated argument name," +
+      "Found duplicated argument name," +
         "please make the weight name non-duplicated(using name arguments)," +
         s"arguments are $argNames")
 
     val auxNames = symbol.listAuxiliaryStates()
     require(auxNames.toSet.size == auxNames.length,
-      "Find duplicated auxiliary param name," +
+      "Found duplicated auxiliary param name," +
         "please make the weight name non-duplicated(using name arguments)," +
         s"arguments are $auxNames")
   }
@@ -272,7 +273,11 @@ private[mxnet] object ExecutorManager {
       sharedDataArrays: mutable.Map[String, NDArray] = null,
       inputTypes: ListMap[String, DType] = null) = {
     val (argShape, _, auxShape) = sym.inferShape(inputShapes)
-    require(argShape != null)
+    // TODO: more precise error message should be provided by backend
+    require(argShape != null, "Shape inference failed." +
+      s"Known shapes are $inputShapes for symbol arguments ${sym.listArguments()} " +
+      s"and aux states ${sym.listAuxiliaryStates()}")
+
     val inputTypesUpdate =
       if (inputTypes == null) {
         inputShapes.map { case (key, _) => (key, Base.MX_REAL_TYPE) }
@@ -280,7 +285,9 @@ private[mxnet] object ExecutorManager {
         inputTypes
       }
     val (argTypes, _, auxTypes) = sym.inferType(inputTypesUpdate)
-    require(argTypes != null)
+    require(argTypes != null, "Type inference failed." +
+      s"Known types as $inputTypes for symbol arguments ${sym.listArguments()} " +
+      s"and aux states ${sym.listAuxiliaryStates()}")
 
     val argArrays = ArrayBuffer.empty[NDArray]
     val gradArrays: mutable.Map[String, NDArray] =
@@ -311,7 +318,8 @@ private[mxnet] object ExecutorManager {
             val arr = sharedDataArrays(name)
             if (arr.shape.product >= argShape(i).product) {
               // good, we can share this memory
-              require(argTypes(i) == arr.dtype)
+              require(argTypes(i) == arr.dtype,
+                s"Type ${arr.dtype} of argument $name does not match inferred type ${argTypes(i)}")
               arr.reshape(argShape(i))
             } else {
               DataParallelExecutorManager.logger.warn(
@@ -345,8 +353,10 @@ private[mxnet] object ExecutorManager {
             NDArray.zeros(argShape(i), ctx, dtype = argTypes(i))
           } else {
             val arr = baseExec.argDict(name)
-            require(arr.shape == argShape(i))
-            require(arr.dtype == argTypes(i))
+            require(arr.shape == argShape(i),
+              s"Shape ${arr.shape} of argument $name does not match inferred shape ${argShape(i)}")
+            require(arr.dtype == argTypes(i),
+              s"Type ${arr.dtype} of argument $name does not match inferred type ${argTypes(i)}")
             if (gradSet.contains(name)) {
               gradArrays.put(name, baseExec.gradDict(name))
             }
@@ -356,6 +366,7 @@ private[mxnet] object ExecutorManager {
       }
     }
     // create or borrow aux variables
+    val auxNames = sym.listAuxiliaryStates()
     val auxArrays =
       if (baseExec == null) {
         (auxShape zip auxTypes) map { case (s, t) =>
@@ -363,8 +374,12 @@ private[mxnet] object ExecutorManager {
         }
       } else {
         baseExec.auxArrays.zipWithIndex.map { case (a, i) =>
-          require(auxShape(i) == a.shape)
-          require(auxTypes(i) == a.dtype)
+          require(auxShape(i) == a.shape,
+            s"Shape ${a.shape} of aux variable ${auxNames(i)} does not match " +
+              s"inferred shape ${auxShape(i)}")
+          require(auxTypes(i) == a.dtype,
+            s"Type ${a.dtype} of aux variable ${auxNames(i)} does not match " +
+              s"inferred type ${auxTypes(i)}")
           a
         }.toSeq
       }
@@ -380,8 +395,8 @@ private[mxnet] object ExecutorManager {
  * @param paramNames Names of all trainable parameters.
  * @param ctx List of devices for training (data parallel)
  * @param slices Describes how the data parallel splits data into different devices.
- * @param providedData training data shapes
- * @param providedLabel training label shapes
+ * @param providedDataDesc training data descriptions
+ * @param providedLabelDesc training label descriptions
  * @param sharedGroup: DataParallelExecutorGroup
  *                   An existing executor group, if to share parameters with it.
  *
@@ -389,8 +404,8 @@ private[mxnet] object ExecutorManager {
 private class DataParallelExecutorGroup private(sym: Symbol,
                                 argNames: IndexedSeq[String], paramNames: Set[String],
                                 ctx: Array[Context], private val slices: Array[(Int, Int)],
-                                providedData: Map[String, Shape],
-                                providedLabel: Map[String, Shape],
+                                providedDataDesc: IndexedSeq[DataDesc],
+                                providedLabelDesc: IndexedSeq[DataDesc],
                                 sharedGroup: DataParallelExecutorGroup)  {
   // make sure the architecture is valid
   ExecutorManager.checkArguments(sym)
@@ -402,8 +417,8 @@ private class DataParallelExecutorGroup private(sym: Symbol,
       sharedGroup.sharedDataArrays
     }
 
-  private[mxnet] val dataNames = providedData.map { case (k, _) => k }.toList
-  private[mxnet] val labelNames = providedLabel.map { case (k, _) => k }.toList
+  private[mxnet] val dataNames = providedDataDesc.map(_.name).toList
+  private[mxnet] val labelNames = providedLabelDesc.map(_.name).toList
   private[mxnet] val auxNames = sym.listAuxiliaryStates()
   private[mxnet] val paramIdx = argNames.zipWithIndex
     .filter { case (name, i) => paramNames.contains(name) }
@@ -413,9 +428,10 @@ private class DataParallelExecutorGroup private(sym: Symbol,
   private[mxnet] val trainExecs: Array[Executor] =
     ctx.zipWithIndex.map { case (ctxi, i) =>
       val dataShapes =
-        (providedData ++ providedLabel) map { case (name, shape) =>
-          name -> (Shape(slices(i)._2 - slices(i)._1) ++ shape.slice(1, shape.length))
-        }
+        (providedDataDesc ++ providedLabelDesc).map( desc => {
+          desc.name ->
+            (Shape(slices(i)._2 - slices(i)._1) ++ desc.shape.slice(1, desc.shape.length))
+        }).toMap
       val sharedExec: Executor = if (sharedGroup == null) null else sharedGroup.trainExecs(i)
       ExecutorManager.bindExec(sym, ctxi, dataShapes, paramNamesComb,
         needGrad = true, baseExec = sharedExec,
@@ -464,7 +480,7 @@ private class DataParallelExecutorGroup private(sym: Symbol,
       trainData: DataIter,
       sharedGroup: DataParallelExecutorGroup) {
     this(sym, argNames, paramNames, ctx, slices,
-      trainData.provideData, trainData.provideLabel, sharedGroup)
+      trainData.provideDataDesc, trainData.provideLabelDesc, sharedGroup)
   }
 
   def this(sym: Symbol,
@@ -472,7 +488,7 @@ private class DataParallelExecutorGroup private(sym: Symbol,
            ctx: Array[Context], slices: Array[(Int, Int)],
            trainData: DataIter) {
     this(sym, argNames, paramNames, ctx, slices,
-      trainData.provideData, trainData.provideLabel, null)
+      trainData.provideDataDesc, trainData.provideLabelDesc, null)
   }
 
   /**
@@ -494,7 +510,7 @@ private class DataParallelExecutorGroup private(sym: Symbol,
       trainData: DataBatch,
       sharedGroup: DataParallelExecutorGroup) {
     this(sym, argNames, paramNames, ctx, slices,
-      trainData.provideData, trainData.provideLabel, sharedGroup)
+      trainData.provideDataDesc, trainData.provideLabelDesc, sharedGroup)
   }
 
   def this(sym: Symbol,
@@ -502,7 +518,7 @@ private class DataParallelExecutorGroup private(sym: Symbol,
            ctx: Array[Context], slices: Array[(Int, Int)],
            trainData: DataBatch) {
     this(sym, argNames, paramNames, ctx, slices,
-      trainData.provideData, trainData.provideLabel, null)
+      trainData.provideDataDesc, trainData.provideLabelDesc, null)
   }
 
   // load data and labels into arrays

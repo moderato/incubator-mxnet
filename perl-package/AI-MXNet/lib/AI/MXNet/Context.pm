@@ -19,6 +19,7 @@ package AI::MXNet::Context;
 use strict;
 use warnings;
 use Mouse;
+use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::Types;
 use AI::MXNet::Function::Parameters;
@@ -190,14 +191,38 @@ method num_gpus()
     return scalar(check_call(AI::MXNetCAPI::GetGPUCount()));
 }
 
+=head2 gpu_memory_info
+
+    Query CUDA for the free and total bytes of GPU global memory.
+
+    Parameters
+    ----------
+    $device_id=0 : int, optional
+        The device id of the GPU device.
+
+    Raises
+    ------
+    Will raise an exception on any CUDA error.
+
+    Returns
+    -------
+    ($free, $total) : (int, int)
+        Free and total memory in bytes.
+=cut
+
+method gpu_memory_info($device_id=0)
+{
+    return check_call(AI::MXNetCAPI::GetGPUMemoryInformation64($device_id));
+}
+
 method current_ctx()
 {
-    return $AI::MXNet::current_ctx;
+    return $AI::MXNet::Context;
 }
 
 method set_current(AI::MXNet::Context $current)
 {
-    $AI::MXNet::current_ctx = $current;
+    $AI::MXNet::Context = $current;
 }
 
 *current_context = \&current_ctx;
@@ -210,5 +235,6 @@ method deepcopy()
     );
 }
 
-$AI::MXNet::current_ctx = __PACKAGE__->new(device_type => 'cpu', device_id => 0);
+__PACKAGE__->AI::MXNet::NS::register('AI::MXNet');
 
+1;

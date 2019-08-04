@@ -111,7 +111,8 @@ def parse_args():
                         help='dont use PASCAL VOC 07 11-point metric')
     parser.add_argument('--lite', dest='lite', action='store_true',
                         help='use SSDLite')
-
+    parser.add_argument('--kv-store', type=str, default='local',
+                        help='key-value store type')
     args = parser.parse_args()
     return args
 
@@ -163,4 +164,8 @@ if __name__ == '__main__':
               ovp_thresh=args.overlap_thresh,
               use_difficult=args.use_difficult,
               voc07_metric=args.use_voc07_metric,
+<<<<<<< HEAD
               lite=args.lite)
+=======
+              kv_store=args.kv_store)
+>>>>>>> 24cce9e3c99e499b696b779cbb3b863145f473f1

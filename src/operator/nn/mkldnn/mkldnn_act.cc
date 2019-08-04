@@ -32,8 +32,7 @@
 #include <string>
 #include <utility>
 #include "../../operator_common.h"
-#include "../activation-inl.h"
-#include "./mkldnn_base-inl.h"
+#include "mkldnn_act-inl.h"
 
 #if MXNET_USE_MKLDNN == 1
 
@@ -49,7 +48,22 @@ bool SupportMKLDNNAct(const ActivationParam& param) {
       || param.act_type == activation::kTanh;
 }
 
-static inline mkldnn::algorithm GetMKLDNNActAlgo(const ActivationParam& param) {
+bool SupportMKLDNNAct(const ActivationParam& param, const NDArray &input) {
+  // MKL-DNN Activation supports 1d, 2d, 3d, 4d data layout
+  if ((input.shape().ndim() < 1) ||
+      (input.shape().ndim() > 4) ||
+      (input.dtype() != mshadow::kFloat32))
+    return false;
+  return SupportMKLDNNAct(param);
+}
+
+bool SupportQuantizedMKLDNNAct(const ActivationParam &param) {
+  // TODO(zhennan): Add more activation type when mkldnn supports.
+  //                Remove this when it's identity to SupportMKLDNNAct.
+  return param.act_type == activation::kReLU;
+}
+
+mkldnn::algorithm GetMKLDNNActAlgo(const ActivationParam& param) {
   switch (param.act_type) {
     case activation::kReLU:
       return mkldnn::algorithm::eltwise_relu;
@@ -65,9 +79,7 @@ static inline mkldnn::algorithm GetMKLDNNActAlgo(const ActivationParam& param) {
   }
 }
 
-typedef std::shared_ptr<mkldnn::eltwise_forward::primitive_desc> mkldnn_act_pdesc_ptr;
-
-static mkldnn::eltwise_forward::primitive_desc GetActFwdDescImpl(
+mkldnn::eltwise_forward::primitive_desc GetActFwdDescImpl(
     const ActivationParam& param, bool is_train,
     const mkldnn::memory &input_mem, int dtype) {
   mkldnn::memory::primitive_desc data_mpd = input_mem.get_primitive_desc();
@@ -75,65 +87,41 @@ static mkldnn::eltwise_forward::primitive_desc GetActFwdDescImpl(
   auto cpu_engine = data_mpd.get_engine();
 
   auto alg = GetMKLDNNActAlgo(param);
-  MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
-    DType alpha = 0;
-    mkldnn::eltwise_forward::desc desc = is_train
-        ? mkldnn::eltwise_forward::desc(mkldnn::prop_kind::forward_training,
-                                        alg, data_md, alpha)
-        : mkldnn::eltwise_forward::desc(mkldnn::prop_kind::forward_scoring,
-                                        alg, data_md, alpha);
-    return mkldnn::eltwise_forward::primitive_desc(desc, cpu_engine);
-  });
-  LOG(INFO) << "Unsupported data type for MKLDNN activation";
-  mkldnn::eltwise_forward::desc desc = mkldnn::eltwise_forward::desc(
-      mkldnn::prop_kind::forward_training, alg, data_md, 0.0);
+
+  auto prop = is_train ? mkldnn::prop_kind::forward_training :
+                         mkldnn::prop_kind::forward_scoring;
+  auto desc = mkldnn::eltwise_forward::desc(prop, alg, data_md, 0.0f);
   return mkldnn::eltwise_forward::primitive_desc(desc, cpu_engine);
 }
 
-typedef ParamOpSign<ActivationParam> MKLDNNActSignature;
+void MKLDNNActForward::SetNewMem(const mkldnn::memory &data, const mkldnn::memory &output) {
+  if (this->data_ == nullptr)
+    this->data_ = std::make_shared<mkldnn::memory>(data.get_primitive_desc(),
+            data.get_data_handle());
+  else
+    this->data_->set_data_handle(data.get_data_handle());
 
-class MKLDNNActForward {
-  std::shared_ptr<mkldnn::eltwise_forward> fwd;
-  std::shared_ptr<mkldnn::memory> data;
-  std::shared_ptr<mkldnn::memory> out;
+  CHECK(fwd_pd.dst_primitive_desc() == output.get_primitive_desc());
+  if (this->out_ == nullptr)
+    this->out_ = std::make_shared<mkldnn::memory>(fwd_pd.dst_primitive_desc(),
+            output.get_data_handle());
+  else
+    this->out_->set_data_handle(output.get_data_handle());
 
- public:
-  const mkldnn::eltwise_forward::primitive_desc fwd_pd;
-
-  MKLDNNActForward(const ActivationParam& param, bool is_train,
-                   const NDArray &data, const mkldnn::memory &mem): fwd_pd(
-                       GetActFwdDescImpl(param, is_train, mem, data.dtype())) {
+  if (this->fwd_ == nullptr) {
+    this->fwd_ = std::shared_ptr<mkldnn::eltwise_forward>(
+        new mkldnn::eltwise_forward(fwd_pd, mkldnn::primitive::at(*this->data_),
+                                    *this->out_));
   }
+}
 
-  void SetNewMem(const mkldnn::memory &data, const mkldnn::memory &output) {
-    if (this->data == nullptr)
-      this->data = std::shared_ptr<mkldnn::memory>(new mkldnn::memory(
-              data.get_primitive_desc(), data.get_data_handle()));
-    else
-      this->data->set_data_handle(data.get_data_handle());
+const mkldnn::eltwise_forward &MKLDNNActForward::GetFwd() const {
+  return *fwd_;
+}
 
-    CHECK(fwd_pd.dst_primitive_desc() == output.get_primitive_desc());
-    if (this->out == nullptr)
-      this->out = std::shared_ptr<mkldnn::memory>(new mkldnn::memory(
-              fwd_pd.dst_primitive_desc(), output.get_data_handle()));
-    else
-      this->out->set_data_handle(output.get_data_handle());
-
-    if (this->fwd == nullptr) {
-      this->fwd = std::shared_ptr<mkldnn::eltwise_forward>(
-          new mkldnn::eltwise_forward(fwd_pd, mkldnn::primitive::at(*this->data),
-                                      *this->out));
-    }
-  }
-
-  const mkldnn::eltwise_forward &GetFwd() const {
-    return *fwd;
-  }
-};
-
-static MKLDNNActForward &GetActForward(const ActivationParam& param,
-                                       const OpContext &ctx, const NDArray &in_data,
-                                       const mkldnn::memory &in_mem) {
+MKLDNNActForward &GetActForward(const ActivationParam& param,
+                                const OpContext &ctx, const NDArray &in_data,
+                                const mkldnn::memory &in_mem) {
 #if DMLC_CXX11_THREAD_LOCAL
   static thread_local std::unordered_map<MKLDNNActSignature, MKLDNNActForward, OpHash> fwds;
 #else
@@ -147,10 +135,7 @@ static MKLDNNActForward &GetActForward(const ActivationParam& param,
   auto it = fwds.find(key);
   if (it == fwds.end()) {
     MKLDNNActForward fwd(param, ctx.is_train, in_data, in_mem);
-    auto ins_ret = fwds.insert(std::pair<MKLDNNActSignature, MKLDNNActForward>(
-            key, fwd));
-    CHECK(ins_ret.second);
-    it = ins_ret.first;
+    it = AddToCache(&fwds, key, fwd);
   }
   return it->second;
 }
@@ -173,6 +158,97 @@ void MKLDNNActivationForward(const nnvm::NodeAttrs& attrs, const OpContext &ctx,
   stream->RegisterPrim(fwd.GetFwd());
   CommitOutput(out_data, out_mem_t);
   stream->Submit();
+}
+
+static mkldnn::eltwise_backward::primitive_desc GetActBwdDescImpl(
+    const ActivationParam &param, const mkldnn::memory &input_mem,
+    const mkldnn::memory &diff_dst_memory, int dtype) {
+  mkldnn::memory::primitive_desc data_mpd = input_mem.get_primitive_desc();
+  mkldnn::memory::desc data_md = data_mpd.desc();
+  mkldnn::memory::desc diff_md = diff_dst_memory.get_primitive_desc().desc();
+  auto cpu_engine = data_mpd.get_engine();
+  auto alg = GetMKLDNNActAlgo(param);
+
+  MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
+    DType alpha = 0;
+    mkldnn::eltwise_forward::desc fw_desc(mkldnn::prop_kind::forward_training,
+                                          alg, data_md, alpha);
+    mkldnn::eltwise_forward::primitive_desc fw_pdesc(fw_desc, cpu_engine);
+    mkldnn::eltwise_backward::desc bw_desc(alg, diff_md, data_md, alpha);
+    mkldnn::eltwise_backward::primitive_desc bw_pdesc(bw_desc, cpu_engine,
+                                                      fw_pdesc);
+    return bw_pdesc;
+  });
+  LOG(FATAL) << "Unsupported data type for MKLDNN activation";
+  mkldnn::eltwise_forward::desc fw_desc(mkldnn::prop_kind::forward_training,
+                                        alg, data_md, 0.0);
+  mkldnn::eltwise_forward::primitive_desc fw_pdesc(fw_desc, cpu_engine);
+  mkldnn::eltwise_backward::desc bw_desc(alg, diff_md, data_md, 0.0);
+  mkldnn::eltwise_backward::primitive_desc bw_pdesc(bw_desc, cpu_engine,
+                                                    fw_pdesc);
+  return bw_pdesc;
+}
+
+class MKLDNNActBackward {
+  std::shared_ptr<mkldnn::eltwise_backward> bwd;
+  std::shared_ptr<mkldnn::memory> data;
+  std::shared_ptr<mkldnn::memory> diff_dst_memory;
+  std::shared_ptr<mkldnn::memory> diff_src_memory;
+
+ public:
+  const mkldnn::eltwise_backward::primitive_desc pd;
+
+  explicit MKLDNNActBackward(const ActivationParam &param, const NDArray &data,
+                             const mkldnn::memory &mem,
+                             const mkldnn::memory &diff_dst_memory)
+      : pd(GetActBwdDescImpl(param, mem, diff_dst_memory, data.dtype())) {}
+
+  void SetNewMem(const mkldnn::memory &data,
+                 const mkldnn::memory &diff_dst_memory,
+                 const mkldnn::memory &diff_src_memory) {
+    if (this->bwd != nullptr) {
+      this->data->set_data_handle(data.get_data_handle());
+      this->diff_dst_memory->set_data_handle(diff_dst_memory.get_data_handle());
+      this->diff_src_memory->set_data_handle(diff_src_memory.get_data_handle());
+    } else {
+      this->data = std::shared_ptr<mkldnn::memory>(new mkldnn::memory(
+          data.get_primitive_desc(), data.get_data_handle()));
+      this->diff_dst_memory = std::shared_ptr<mkldnn::memory>(
+          new mkldnn::memory(diff_dst_memory.get_primitive_desc(),
+                             diff_dst_memory.get_data_handle()));
+      this->diff_src_memory = std::shared_ptr<mkldnn::memory>(
+          new mkldnn::memory(diff_src_memory.get_primitive_desc(),
+                             diff_src_memory.get_data_handle()));
+      this->bwd = std::shared_ptr<mkldnn::eltwise_backward>(
+          new mkldnn::eltwise_backward(
+              this->pd, mkldnn::primitive::at(*this->data),
+              *this->diff_dst_memory, *this->diff_src_memory));
+    }
+  }
+
+  const inline mkldnn::eltwise_backward &GetBwd() const { return *bwd; }
+};
+
+static inline MKLDNNActBackward &GetActBackward(const ActivationParam &param,
+                                                const OpContext &ctx,
+                                                const NDArray &in_data,
+                                                const NDArray &out_grad,
+                                                const mkldnn::memory &in_mem) {
+#if DMLC_CXX11_THREAD_LOCAL
+  static thread_local std::unordered_map<MKLDNNActSignature, MKLDNNActBackward, OpHash> bwds;
+#else
+  static MX_THREAD_LOCAL std::unordered_map<MKLDNNActSignature, MKLDNNActBackward, OpHash> bwds;
+#endif
+  MKLDNNActSignature key(param);
+  key.AddSign(in_data);
+  key.AddSign(out_grad);
+
+  auto it = bwds.find(key);
+  if (it == bwds.end()) {
+    MKLDNNActBackward bwd(param, in_data, in_mem, *out_grad.GetMKLDNNData());
+    it = AddToCache(&bwds, key, bwd);
+  }
+  return it->second;
 }
 
 // For backward relu activation, it's okay to pass "out_data" as "in_data" to this
@@ -200,30 +276,13 @@ void MKLDNNActivationBackward(const nnvm::NodeAttrs& attrs, const OpContext &ctx
   // descriptor. Otherwise, the perf will suffer.
   if (input_mem->get_primitive_desc() != diff_dst_memory->get_primitive_desc())
     input_mem = in_buffer.GetMKLDNNDataReorder(diff_dst_memory->get_primitive_desc());
-  mkldnn::memory::primitive_desc data_mpd = input_mem->get_primitive_desc();
-  mkldnn::memory::desc data_md = data_mpd.desc();
-  mkldnn::memory::desc diff_md = diff_dst_memory->get_primitive_desc().desc();
-  auto cpu_engine = data_mpd.get_engine();
-
+  MKLDNNActBackward &bwd =
+      GetActBackward(param, ctx, in_buffer, out_buffer, *input_mem);
   MKLDNNStream *stream = MKLDNNStream::Get();
-  auto alg = GetMKLDNNActAlgo(param);
-  mkldnn_output_t diff_src_memory;
-
-  MSHADOW_REAL_TYPE_SWITCH(in_buffer.dtype(), DType, {
-    DType alpha = 0;
-    mkldnn::eltwise_forward::desc fw_desc(mkldnn::prop_kind::forward_training,
-                                          alg, data_md, alpha);
-    mkldnn::eltwise_forward::primitive_desc fw_pdesc(fw_desc, cpu_engine);
-    mkldnn::eltwise_backward::desc bw_desc(alg, diff_md, data_md, alpha);
-    mkldnn::eltwise_backward::primitive_desc bw_pdesc(bw_desc, cpu_engine,
-                                                      fw_pdesc);
-
-    diff_src_memory = CreateMKLDNNMem(in_grad,
-                                      bw_pdesc.diff_src_primitive_desc(), req);
-    stream->RegisterPrim(mkldnn::eltwise_backward(bw_pdesc, *input_mem,
-                                                  *diff_dst_memory,
-                                                  *diff_src_memory.second));
-  });
+  mkldnn_output_t diff_src_memory =
+      CreateMKLDNNMem(in_grad, bwd.pd.diff_src_primitive_desc(), req);
+  bwd.SetNewMem(*input_mem, *diff_dst_memory, *diff_src_memory.second);
+  stream->RegisterPrim(bwd.GetBwd());
   CommitOutput(in_grad, diff_src_memory);
   stream->Submit();
 }

@@ -27,7 +27,7 @@
 #include "./c_api_common.h"
 #include "../operator/subgraph/subgraph_property.h"
 
-int MXPartitionGraphByOpNames(SymbolHandle sym_handle,
+int MXBuildSubgraphByOpNames(SymbolHandle sym_handle,
                               const char* prop_name,
                               const mx_uint num_ops,
                               const char** op_names,
@@ -40,16 +40,23 @@ int MXPartitionGraphByOpNames(SymbolHandle sym_handle,
   }
   nnvm::Symbol* sym = static_cast<nnvm::Symbol*>(sym_handle);
   *s = sym->Copy();
-  nnvm::Graph g;
-  g.outputs = s->outputs;
   if (!op_name_set.empty()) {
-    mxnet::op::SubgraphPropertyPtr property
-        = mxnet::op::SubgraphPropertyRegistry::Get()->CreateSubgraphProperty(prop_name);
-    property->SetAttr("op_names", op_name_set);
-    g.attrs["subgraph_property"] = std::make_shared<nnvm::any>(std::move(property));
+    auto& backend =
+        mxnet::op::SubgraphBackendRegistry::Get()->GetSubgraphBackend(prop_name);
+    LOG(INFO) << "Subgraph backend " << backend->GetName() << " is activated.";
+    const auto& subgraph_prop_list = backend->GetSubgraphProperties();
+    for (auto property : subgraph_prop_list) {
+      nnvm::Graph g;
+      g.outputs = s->outputs;
+      property->SetAttr("graph", g);
+      property->SetAttr("op_names", op_name_set);
+      g.attrs["subgraph_property"] = std::make_shared<nnvm::any>(property);
+      g = nnvm::ApplyPass(std::move(g), "BuildSubgraph");
+      property->RemoveAttr("graph");
+      g.attrs.erase("subgraph_property");
+      s->outputs = g.outputs;
+    }
   }
-  g = nnvm::ApplyPass(std::move(g), "PartitionGraph");
-  s->outputs = g.outputs;
   *ret_sym_handle = s;
   API_END_HANDLE_ERROR(delete s);
 }

@@ -26,6 +26,8 @@ import warnings
 import re
 from collections import OrderedDict
 
+
+from ..base import mx_real_t, MXNetError
 from .. import symbol, ndarray, initializer
 from ..symbol import Symbol
 from ..ndarray import NDArray
@@ -325,8 +327,7 @@ class Block(object):
 
         References
         ----------
-        `Saving and Loading Gluon Models
-
+        `Saving and Loading Gluon Models \
         <https://mxnet.incubator.apache.org/tutorials/gluon/save_load_params.html>`_
         """
         params = self._collect_params_with_prefix()
@@ -354,7 +355,7 @@ class Block(object):
                               'save_parameters may resolve this error.'%e.message)
 
     def load_parameters(self, filename, ctx=None, allow_missing=False,
-                        ignore_extra=False):
+                        ignore_extra=False, cast_dtype=False, dtype_source='current'):
         """Load parameters from file previously saved by `save_parameters`.
 
         Parameters
@@ -368,11 +369,16 @@ class Block(object):
         ignore_extra : bool, default False
             Whether to silently ignore parameters from the file that are not
             present in this Block.
-
+        cast_dtype : bool, default False
+            Cast the data type of the NDArray loaded from the checkpoint to the dtype
+            provided by the Parameter if any.
+        dtype_source : str, default 'current'
+            must be in {'current', 'saved'}
+            Only valid if cast_dtype=True, specify the source of the dtype for casting
+            the parameters
         References
         ----------
-        `Saving and Loading Gluon Models
-
+        `Saving and Loading Gluon Models \
         <https://mxnet.incubator.apache.org/tutorials/gluon/save_load_params.html>`_
         """
         loaded = ndarray.load(filename)
@@ -384,7 +390,8 @@ class Block(object):
             # legacy loading
             del loaded
             self.collect_params().load(
-                filename, ctx, allow_missing, ignore_extra, self.prefix)
+                filename, ctx, allow_missing, ignore_extra, self.prefix,
+                cast_dtype=cast_dtype, dtype_source=dtype_source)
             return
 
         if not allow_missing:
@@ -400,7 +407,7 @@ class Block(object):
                     "which contains parameters %s. Set ignore_extra=True to ignore. "%(
                         name, filename, _brief_print_list(self._params.keys())))
             if name in params:
-                params[name]._load_init(loaded[name], ctx)
+                params[name]._load_init(loaded[name], ctx, cast_dtype=cast_dtype, dtype_source=dtype_source)
 
     def load_params(self, filename, ctx=None, allow_missing=False,
                     ignore_extra=False):
@@ -835,8 +842,9 @@ class HybridBlock(Block):
         self._flags = list(kwargs.items())
         self._clear_cached_op()
         if active and self._forward_hooks or self._forward_pre_hooks:
-            warnings.warn('"{}" is being hybridized while still having forward hook/pre-hook. '
-                          'If "{}" is a child of HybridBlock, the hooks will not take effect.')
+            warnings.warn('"{block}" is being hybridized while still having forward hook/pre-hook. '
+                          'If "{block}" is a child of HybridBlock, the hooks will not take effect.'
+                          .format(block=self))
         super(HybridBlock, self).hybridize(active, **kwargs)
 
     def cast(self, dtype):
@@ -866,7 +874,7 @@ class HybridBlock(Block):
         """Infers data type of Parameters from inputs."""
         self._infer_attrs('infer_type', 'dtype', *args)
 
-    def export(self, path, epoch=0):
+    def export(self, path, epoch=0, remove_amp_cast=True):
         """Export HybridBlock to json format that can be loaded by
         `SymbolBlock.imports`, `mxnet.mod.Module` or the C++ interface.
 
@@ -886,7 +894,7 @@ class HybridBlock(Block):
                 "Please first call block.hybridize() and then run forward with "
                 "this block at least once before calling export.")
         sym = self._cached_graph[1]
-        sym.save('%s-symbol.json'%path)
+        sym.save('%s-symbol.json'%path, remove_amp_cast=remove_amp_cast)
 
         arg_names = set(sym.list_arguments())
         aux_names = set(sym.list_auxiliary_states())
@@ -1019,12 +1027,25 @@ class SymbolBlock(HybridBlock):
         sym = symbol.load(symbol_file)
         if isinstance(input_names, str):
             input_names = [input_names]
-        inputs = [symbol.var(i) for i in input_names]
+        if param_file is None:
+            # Get a valid type inference by using fp32
+            inputs = [symbol.var(i, dtype=mx_real_t) for i in input_names]
+        else:
+            # Do not specify type, rely on saved params type instead
+            inputs = [symbol.var(i) for i in input_names]
         ret = SymbolBlock(sym, inputs)
         if param_file is not None:
-            ret.collect_params().load(param_file, ctx=ctx)
+            ret.collect_params().load(param_file, ctx=ctx, cast_dtype=True, dtype_source='saved')
         return ret
 
+    def __repr__(self):
+        s = '{name}(\n{modstr}\n)'
+        modstr = '\n'.join(['{block} : {numinputs} -> {numoutputs}'.format(block=self._cached_graph[1],
+                                                                           numinputs=len(self._cached_graph[0]),
+                                                                           numoutputs=len(self._cached_graph[1].
+                                                                                          list_outputs()))])
+        return s.format(name=self.__class__.__name__,
+                        modstr=modstr)
 
     def __init__(self, outputs, inputs, params=None):
         super(SymbolBlock, self).__init__(prefix=None, params=None)
@@ -1053,13 +1074,20 @@ class SymbolBlock(HybridBlock):
                     "SymbolBlock doesn't support Parameter '%s' because its storage " \
                     "type is 'row_sparse'." % j.name
 
-        for i in out.list_arguments():
-            if i not in input_names:
-                self.params.get(i, allow_deferred_init=True)
+        # Infer type of parameters. Without this, every parameter will be created with
+        # default type i.e., fp32
+        arg_params = out.list_arguments()
+        aux_params = out.list_auxiliary_states()
 
-        for i in out.list_auxiliary_states():
-            if i not in input_names:
-                self.params.get(i, grad_req='null', allow_deferred_init=True)
+        arg_types, aux_types = _infer_param_types(syms, out, arg_params, aux_params)
+
+        for i, arg in enumerate(arg_params):
+            if arg not in input_names:
+                self.params.get(arg, allow_deferred_init=True, dtype=arg_types[i])
+
+        for i, aux in enumerate(aux_params):
+            if aux not in input_names:
+                self.params.get(aux, grad_req='null', allow_deferred_init=True, dtype=aux_types[i])
 
         self._cached_graph = syms, out
         len_prefix = len(_common_prefix(list(self._params.keys())))
@@ -1084,5 +1112,75 @@ class SymbolBlock(HybridBlock):
         super(SymbolBlock, self)._clear_cached_op()
         self._cached_graph = tmp
 
+    def cast(self, dtype):
+        self._clear_cached_op()
+        super(SymbolBlock, self).cast(dtype)
+
     def hybrid_forward(self, F, x, *args, **kwargs):
         raise NotImplementedError
+
+def _infer_param_types(in_params, out_params, arg_params, aux_params, default_dtype=mx_real_t):
+    """Utility function that helps in inferring DType of args and auxs params
+    from given input param.
+
+    Parameters
+    ----------
+    in_params: List of Symbol
+        List of input symbol variables.
+    out_params: Symbol
+        Output symbol variable.
+    arg_params: List of Str
+        List of names of argument parametrs.
+    aux_params: List of Str
+        List of names of auxiliary parameters.
+    default_dtype: numpy.dtype or str, default 'float32'
+        Default data type for arg_params and aux_params, if unable to infer the type.
+
+    Returns
+    -------
+    arg_types: List of numpy.dtype
+        List of arg_params type. Order is same as arg_params.
+        Defaults to 'float32', if unable to infer type.
+    aux_types: List of numpy.dtype
+        List of aux_params type. Order is same as aux_params.
+        Defaults to 'float32', if unable to infer type.
+    """
+    arg_types = None
+    aux_types = None
+
+    # Get Input symbol details. This will be used to infer types of
+    # other parameters.
+    input_sym_names = [in_param.name for in_param in in_params]
+
+    # Try to infer input types. If not successful, we will set default dtype.
+    # If successful, we will try to infer other params in the graph.
+    input_sym_arg_types = []
+    can_infer_input_type = True
+    for in_param in in_params:
+        input_sym_arg_type = in_param.infer_type()[0]
+        if not input_sym_arg_type or len(input_sym_arg_type) < 1:
+            can_infer_input_type = False
+            break
+        else:
+            input_sym_arg_types.append(in_param.infer_type()[0][0])
+
+    # Try to infer types of other parameters.
+    if can_infer_input_type:
+        params = {k:v for k, v in zip(input_sym_names, input_sym_arg_types)}
+        try:
+            arg_types, _, aux_types = out_params.infer_type(**params)
+        except MXNetError:
+            # Cannot infer type with current input
+            arg_types, aux_types = None, None
+
+    if arg_types is None or len(arg_types) != len(arg_params):
+        arg_types = []
+        for _ in arg_params:
+            arg_types.append(default_dtype)
+
+    if aux_types is None or len(aux_types) != len(aux_params):
+        aux_types = []
+        for _ in aux_params:
+            aux_types.append(default_dtype)
+
+    return (arg_types, aux_types)

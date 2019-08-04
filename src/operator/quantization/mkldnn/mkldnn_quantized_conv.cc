@@ -41,21 +41,22 @@ static void MKLDNNQuantizedConvForward(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(in_data[0].dtype(), mshadow::kUint8)
     << "mkldnn_quantized_conv op only supports uint8 as input type";
   TmpMemMgr::Get()->Init(ctx.requested[conv::kTempSpace]);
-  const ConvolutionParam& param = nnvm::get<ConvolutionParam>(attrs.parsed);
   NDArray weight = in_data[conv::kWeight];
-  MKLDNNConvForward &fwd = GetConvFwd(attrs, ctx.is_train,
-      in_data[conv::kData], weight,
-      param.no_bias ? nullptr : &in_data[conv::kBias], out_data[conv::kOut]);
-
+  ConvolutionParam param = nnvm::get<ConvolutionParam>(attrs.parsed);
+  auto &fwd = GetConvFwd(
+      param, ctx.is_train, in_data[conv::kData], in_data[conv::kWeight],
+      param.no_bias ? nullptr : &in_data[conv::kBias],
+      out_data[conv::kOut]);
   auto data_mem = in_data[conv::kData].GetMKLDNNDataReorder(fwd.fwd_pd.src_primitive_desc());
   const mkldnn::memory *weight_mem;
   // For inference, we want to reorder the weight array so we don't need to
   // reorder data every time.
   if (weight.IsDefaultData()) {
-    weight_mem = GetWeights(weight, fwd.fwd_pd.weights_primitive_desc(), param.num_group);
-    // We also need to modify the layout on the original weight array. The
-    // data conversion happens after the weight array is used.
+    // We also need to modify the layout on the original weight array.
+    // Don't switch below sequence because naive engine will executes
+    // pushAsync synchronously.
     weight.MKLDNNDataReorderAsync(fwd.fwd_pd.weights_primitive_desc());
+    weight_mem = GetWeights(weight, fwd.fwd_pd.weights_primitive_desc(), param.num_group);
   } else {
     weight_mem = weight.GetMKLDNNData();
     CHECK(weight_mem->get_primitive_desc() == fwd.fwd_pd.weights_primitive_desc());
@@ -72,7 +73,7 @@ static void MKLDNNQuantizedConvForward(const nnvm::NodeAttrs& attrs,
   MKLDNNStream::Get()->Submit();
   Stream<cpu> *s = ctx.get_stream<cpu>();
   const size_t num_inputs = param.no_bias ? 2 : 3;
-  mxnet_op::Kernel<QuantizationRangeForMultiplicationStruct, cpu>::Launch(s, 1,
+  mxnet_op::Kernel<QuantizationRangeForS8S8MultiplicationStruct, cpu>::Launch(s, 1,
            out_data[1].data().dptr<float>(), out_data[2].data().dptr<float>(),
            in_data[num_inputs].data().dptr<float>(),
            in_data[num_inputs+1].data().dptr<float>(),

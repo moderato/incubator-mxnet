@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory
 import scala.annotation.varargs
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ListBuffer
+import scala.language.implicitConversions
 /**
  * IO iterators for loading training & validation data
  */
@@ -114,8 +115,9 @@ object IO {
                                   defaultName: String,
                                   defaultDType: DType,
                                   defaultLayout: String): IndexedSeq[(DataDesc, NDArray)] = {
-    require(data != null)
-    require(data != IndexedSeq.empty || allowEmpty)
+    require(data != null, "data is required.")
+    require(data != IndexedSeq.empty || allowEmpty,
+      s"data should not be empty when allowEmpty is false")
     if (data == IndexedSeq.empty) {
       IndexedSeq()
     } else if (data.length == 1) {
@@ -139,28 +141,46 @@ class DataBatch(val data: IndexedSeq[NDArray],
                 val pad: Int,
                 // the key for the bucket that should be used for this batch,
                 // for bucketing io only
-                val bucketKey: AnyRef,
+                val bucketKey: AnyRef = null,
                 // use DataDesc to indicate the order of data/label loading
                 // (must match the order of input data/label)
-                private val providedDataDesc: IndexedSeq[DataDesc],
-                private val providedLabelDesc: IndexedSeq[DataDesc]) {
+                private val providedDataDesc: IndexedSeq[DataDesc] = null,
+                private val providedLabelDesc: IndexedSeq[DataDesc] = null) {
   // TODO: change the data/label type into IndexedSeq[(NDArray, DataDesc)]
   // However, since the data and label can be accessed publicly (no getter and setter)
   // the change on this will break BC
+
+  @deprecated("Use provideDataDesc and provideDataLabel instead", "1.3.0")
+  def this(data: IndexedSeq[NDArray],
+           label: IndexedSeq[NDArray],
+           index: IndexedSeq[Long],
+           pad: Int,
+           // the key for the bucket that should be used for this batch,
+           // for bucketing io only
+           bucketKey: AnyRef,
+           // use ListMap to indicate the order of data/label loading
+           // (must match the order of input data/label)
+           providedData: ListMap[String, Shape]) {
+    this(data, label, index, pad, bucketKey,
+      DataDesc.ListMap2Descs(providedData))
+  }
+
+  @deprecated("Use provideDataDesc and provideDataLabel instead", "1.3.0")
   def this(data: IndexedSeq[NDArray],
             label: IndexedSeq[NDArray],
             index: IndexedSeq[Long],
             pad: Int,
             // the key for the bucket that should be used for this batch,
             // for bucketing io only
-            bucketKey: AnyRef = null,
+            bucketKey: AnyRef,
             // use ListMap to indicate the order of data/label loading
             // (must match the order of input data/label)
-            providedData: ListMap[String, Shape] = null,
-            providedLabel: ListMap[String, Shape] = null) {
+            providedData: ListMap[String, Shape],
+            providedLabel: ListMap[String, Shape]) {
     this(data, label, index, pad, bucketKey,
       DataDesc.ListMap2Descs(providedData), DataDesc.ListMap2Descs(providedLabel))
   }
+
   /**
    * Dispose its data and labels
    * The object shall never be used after it is disposed.
@@ -175,6 +195,7 @@ class DataBatch(val data: IndexedSeq[NDArray],
   }
 
   // The name and shape of data
+  @deprecated("Use provideDataDesc instead", "1.3.0")
   def provideData: ListMap[String, Shape] = {
     var temp = ListMap[String, Shape]()
     if (providedDataDesc == null) null
@@ -185,6 +206,7 @@ class DataBatch(val data: IndexedSeq[NDArray],
   }
 
   // The name and shape of label
+  @deprecated("Use provideLabelDesc instead", "1.3.0")
   def provideLabel: ListMap[String, Shape] = {
     var temp = ListMap[String, Shape]()
     if (providedLabelDesc == null) null
@@ -309,8 +331,7 @@ abstract class DataIter extends Iterator[DataBatch] {
    */
   @throws(classOf[NoSuchElementException])
   def next(): DataBatch = {
-    new DataBatch(getData(), getLabel(), getIndex(), getPad(),
-      null, null, null)
+    new DataBatch(getData(), getLabel(), getIndex(), getPad())
   }
 
   /**
@@ -339,11 +360,11 @@ abstract class DataIter extends Iterator[DataBatch] {
   def getIndex(): IndexedSeq[Long]
 
   // The name and shape of data provided by this iterator
-  @deprecated
+  @deprecated("Use provideDataDesc instead", "1.3.0")
   def provideData: ListMap[String, Shape]
 
   // The name and shape of label provided by this iterator
-  @deprecated
+  @deprecated("Use provideLabelDesc instead", "1.3.0")
   def provideLabel: ListMap[String, Shape]
 
   // Provide type:DataDesc of the data
@@ -372,9 +393,7 @@ abstract class DataPack() extends Iterable[DataBatch] {
 case class DataDesc(name: String, shape: Shape,
                     dtype: DType = DType.Float32, layout: String = Layout.UNDEFINED) {
   require(layout == Layout.UNDEFINED || shape.length == layout.length,
-    ("number of dimensions in shape :%d with" +
-    " shape: %s should match the length of the layout: %d with layout: %s").
-    format(shape.length, shape.toString, layout.length, layout))
+    s"number of dimensions in $shape should match the layout $layout")
 
   override def toString(): String = {
     s"DataDesc[$name,$shape,$dtype,$layout]"
@@ -405,7 +424,7 @@ object DataDesc {
     }
   }
 
-  @deprecated
+  @deprecated("Please use DataDesc methods instead", "1.3.0")
   implicit def ListMap2Descs(shapes: ListMap[String, Shape]): IndexedSeq[DataDesc] = {
     if (shapes != null) {
       shapes.map { case (k, s) => new DataDesc(k, s) }.toIndexedSeq

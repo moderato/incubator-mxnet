@@ -176,7 +176,7 @@ int MXCreateCachedOpEx(SymbolHandle handle,
   API_BEGIN();
   std::vector<std::pair<std::string, std::string> > flags;
   for (int i = 0; i < num_flags; ++i) {
-    flags.push_back({keys[i], vals[i]});
+    flags.emplace_back(keys[i], vals[i]);
   }
   *out = new CachedOpPtr(new CachedOp(*sym, flags));
   API_END();
@@ -273,6 +273,18 @@ int MXAutogradIsRecording(bool* curr) {
 int MXAutogradSetIsRecording(int is_recording, int* prev) {
   API_BEGIN();
   *prev = Imperative::Get()->set_is_recording(static_cast<bool>(is_recording));
+  API_END();
+}
+
+int MXIsNumpyShape(bool* curr) {
+  API_BEGIN();
+  *curr = Imperative::Get()->is_np_shape();
+  API_END();
+}
+
+int MXSetIsNumpyShape(int is_np_shape, int* prev) {
+  API_BEGIN();
+  *prev = Imperative::Get()->set_is_np_shape(static_cast<bool>(is_np_shape));
   API_END();
 }
 

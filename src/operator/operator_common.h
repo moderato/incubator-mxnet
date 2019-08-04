@@ -103,9 +103,10 @@ struct InferStorageTypeError : public dmlc::Error {
     : dmlc::Error(msg_), msg(msg_), index(index) {}
 };
 
-/*! \brief check if shape is empty or contains unknown (0) dim. */
-inline bool shape_is_none(const TShape& x) {
-  return x.ndim() == 0 || x.Size() == 0;
+/*! \brief check if shape is empty or contains unknown (0) dim.
+ * DEPRECATED. */
+inline bool shape_is_none(const mxnet::TShape& x) {
+  return !mxnet::shape_is_known(x);
 }
 
 /*! \brief check if type is none (-1) */
@@ -119,12 +120,12 @@ inline bool storage_type_is_none(const int& x) {
 }
 
 /*! \brief check if shape is scalar({1}). */
-inline bool shape_is_scalar(const TShape& x) {
-  return x.ndim() == 1 && x.Size() == 1;
+inline bool shape_is_scalar(const mxnet::TShape& x) {
+  return x.ndim() == 0;
 }
 
 /*! \brief get string representation of shape */
-inline std::string shape_string(const TShape& x) {
+inline std::string shape_string(const mxnet::TShape& x) {
   std::ostringstream os;
   os << x;
   return os.str();
@@ -158,17 +159,17 @@ inline std::string type_string(const int& x) {
  * \param x source shape.
  * \return whether x and y are compatible.
  */
-inline bool shape_assign(TShape *y, const TShape& x) {
-  if (y->ndim() == 0) {
+inline bool shape_assign(mxnet::TShape *y, const mxnet::TShape& x) {
+  if (!mxnet::ndim_is_known(*y)) {
     *y = x;
     return true;
   } else if (y->ndim() != x.ndim()) {
-    return x.ndim() == 0;
+    return !mxnet::ndim_is_known(x);
   } else {
-    for (size_t i = 0; i < y->ndim(); ++i) {
-      if ((*y)[i] == 0) {
+    for (int i = 0; i < y->ndim(); ++i) {
+      if (!mxnet::dim_size_is_known(*y, i)) {
         (*y)[i] = x[i];
-      } else if ((*y)[i] != x[i] && x[i] != 0) {
+      } else if ((*y)[i] != x[i] && x[i] >= 0) {
         return false;
       }
     }
@@ -221,7 +222,7 @@ inline bool dispatch_mode_assign(DispatchMode *y, const DispatchMode& x) {
  */
 #define SHAPE_ASSIGN_CHECK(shape_array, index, shape)                       \
   {                                                                         \
-    if (!shape_assign(&(shape_array)[index], TShape(shape))) {              \
+    if (!::mxnet::op::shape_assign(&(shape_array)[index], mxnet::TShape(shape))) { \
       std::ostringstream os;                                                \
       os << "Shape inconsistent, Provided = " << (shape_array)[index] << ','\
          << " inferred shape=" << shape;                                    \
@@ -238,11 +239,11 @@ inline bool dispatch_mode_assign(DispatchMode *y, const DispatchMode& x) {
  */
 #define TYPE_ASSIGN_CHECK(type_array, index, type)                          \
   {                                                                         \
-    if (!type_assign(&(type_array)[index], type)) {                         \
+    if (!::mxnet::op::type_assign(&(type_array)[index], type)) {            \
       std::ostringstream os;                                                \
       os << "Type inconsistent, Provided = "                                \
-         << type_string((type_array)[index]) << ','                         \
-         << " inferred type = " << type_string(type);                       \
+         << ::mxnet::op::type_string((type_array)[index]) << ','            \
+         << " inferred type = " << ::mxnet::op::type_string(type);          \
       throw ::mxnet::op::InferTypeError(os.str(), index);                   \
     }                                                                       \
   }
@@ -291,8 +292,8 @@ inline bool dispatch_mode_assign(DispatchMode *y, const DispatchMode& x) {
 #define UNIFORM_TYPE_CHECK(type, expected, arg)                         \
   {                                                                     \
     CHECK_EQ(type, expected) << "This layer requires uniform type. "    \
-                             << "Expected '" << type_string(expected)   \
-                             << "' v.s. given '" << type_string(type)   \
+                             << "Expected '" << ::mxnet::op::type_string(expected)   \
+                             << "' v.s. given '" << ::mxnet::op::type_string(type)   \
                              << "' at '" << arg << "'";                 \
   }
 
@@ -337,8 +338,8 @@ inline bool storage_type_assign(StorageTypeVector* stypes,
                                 const DispatchMode target_dispatch) {
   CHECK_GT(stypes->size(), 0);
   bool success = true;
-  for (size_t i = 0; i < stypes->size(); i++) {
-    if (!type_assign(&(*stypes)[i], target_stype)) {
+  for (int& stype : *stypes) {
+    if (!type_assign(&stype, target_stype)) {
       success = false;
     }
   }
@@ -395,8 +396,8 @@ inline std::vector<nnvm::NodeEntry> MakeGradNode(
   auto p = MakeNode(op_name, n->attrs.name + "_backward",
                     &inputs, &dict, &n);
   std::vector<nnvm::NodeEntry> ret;
-  for (index_t i = 0; i < p->num_outputs(); ++i) {
-    ret.emplace_back(nnvm::NodeEntry{p, i, 0});
+  for (uint32_t i = 0; i < p->num_outputs(); ++i) {
+    ret.emplace_back(p, i, 0);
   }
   return ret;
 }
@@ -406,15 +407,14 @@ inline std::vector<nnvm::NodeEntry> MakeZeroGradNodes(
     const nnvm::NodePtr& n,
     const std::vector<nnvm::NodeEntry>& ograds) {
   std::vector<nnvm::NodeEntry> ret;
-  for (index_t i = 0; i < n->num_inputs(); ++i) {
+  for (uint32_t i = 0; i < n->num_inputs(); ++i) {
     std::ostringstream os;
     if (1 == n->num_inputs()) {
       os << n->attrs.name << "_backward";
     } else {
       os << n->attrs.name << "_in" << i << "_backward";
     }
-    auto p = MakeNode("zeros_like", os.str(), {n->inputs[i]}, nullptr, &n);
-    ret.emplace_back(nnvm::NodeEntry{p, 0, 0});
+    ret.emplace_back(MakeNode("zeros_like", os.str(), {n->inputs[i]}, nullptr, &n));
   }
   return ret;
 }
@@ -424,10 +424,13 @@ inline std::vector<nnvm::NodeEntry> MakeZeroGradNodes(
 inline bool CheckGradAllZero(const std::vector<nnvm::NodeEntry>& ograds) {
   static const auto zero_op = nnvm::Op::Get("_zeros");
   static const auto zero_like_op = nnvm::Op::Get("zeros_like");
-  if (!ograds.size()) return false;
+  if (ograds.empty())
+    return false;
   for (const auto& grad : ograds) {
-    if (!grad.node) return false;
-    if (grad.node->op() != zero_op && grad.node->op() != zero_like_op ) return false;
+    if (!grad.node)
+      return false;
+    if (grad.node->op() != zero_op && grad.node->op() != zero_like_op )
+      return false;
   }
   return true;
 }
@@ -439,14 +442,15 @@ inline std::vector<nnvm::NodeEntry> MakeNonlossGradNode(
     const std::vector<nnvm::NodeEntry>& ograds,
     const std::vector<nnvm::NodeEntry>& inputs,
     const std::unordered_map<std::string, std::string>& dict) {
-  if (CheckGradAllZero(ograds)) return MakeZeroGradNodes(n, ograds);
+  if (CheckGradAllZero(ograds))
+    return MakeZeroGradNodes(n, ograds);
   auto p = MakeNode(op_name, n->attrs.name + "_backward",
                     nullptr, &dict, &n);
   p->inputs.insert(p->inputs.end(), ograds.begin(), ograds.end());
   p->inputs.insert(p->inputs.end(), inputs.begin(), inputs.end());
   std::vector<nnvm::NodeEntry> ret;
-  for (index_t i = 0; i < p->num_outputs(); ++i) {
-    ret.emplace_back(nnvm::NodeEntry{p, i, 0});
+  for (uint32_t i = 0; i < p->num_outputs(); ++i) {
+    ret.emplace_back(p, i, 0);
   }
   return ret;
 }
@@ -556,14 +560,14 @@ class OpSignature {
 #endif
   }
 
-  void AddSign(const std::vector<TShape> &shapes) {
+  void AddSign(const mxnet::ShapeVector &shapes) {
     for (auto &shape : shapes) {
       AddSign(shape);
     }
   }
 
-  void AddSign(const TShape &shape) {
-    for (size_t i = 0; i < shape.ndim(); i++) {
+  void AddSign(const mxnet::TShape &shape) {
+    for (int i = 0; i < shape.ndim(); i++) {
       hash = hash * 2 + shape[i];
       eles.push_back(shape[i]);
     }

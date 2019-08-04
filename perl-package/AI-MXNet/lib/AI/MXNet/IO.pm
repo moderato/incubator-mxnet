@@ -18,6 +18,7 @@
 package AI::MXNet::IO;
 use strict;
 use warnings;
+use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::Function::Parameters;
 use Scalar::Util qw/blessed/;
@@ -642,6 +643,7 @@ extends 'AI::MXNet::DataIter';
     mx->io->CSVIter                     Returns the CSV file iterator.
     mx->io->LibSVMIter                  Returns the LibSVM iterator which returns data with csr storage type.
     mx->io->ImageRecordIter             Iterates on image RecordIO files
+    mx->io->ImageRecordInt8Iter         Iterating on image RecordIO files
     mx->io->ImageRecordUInt8Iter        Iterating on image RecordIO files
     mx->io->MNISTIter                   Iterating on the MNIST dataset.
     mx->recordio->MXRecordIO            Reads/writes RecordIO data format, supporting sequential read and write.

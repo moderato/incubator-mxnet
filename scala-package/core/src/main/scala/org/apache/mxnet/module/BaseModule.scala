@@ -171,8 +171,8 @@ abstract class BaseModule {
             batchEndCallback: Option[BatchEndCallback] = None,
             scoreEndCallback: Option[BatchEndCallback] = None,
             reset: Boolean = true, epoch: Int = 0): EvalMetric = {
-    require(evalData != null && evalMetric != null)
-    require(binded && paramsInitialized)
+    require(evalData != null && evalMetric != null, "evalData and evalMetric must be defined")
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
 
     if (reset) {
       evalData.reset()
@@ -210,13 +210,13 @@ abstract class BaseModule {
    * @param reset Default is `True`, indicating whether we should reset the data iter before start
    *              doing prediction.
    * @return The return value will be a nested list like
-   *         `[[out1_batch1, out2_batch1, ...], [out1_batch2, out2_batch2, ...]]`
+   *         `[ [out1_batch1, out2_batch1, ...], [out1_batch2, out2_batch2, ...] ]`
    *         This mode is useful because in some cases (e.g. bucketing),
    *         the module does not necessarily produce the same number of outputs.
    */
   def predictEveryBatch(evalData: DataIter, numBatch: Int = -1, reset: Boolean = true)
     : IndexedSeq[IndexedSeq[NDArray]] = {
-    require(binded && paramsInitialized)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
     if (reset) {
       evalData.reset()
     }
@@ -234,7 +234,7 @@ abstract class BaseModule {
   }
 
   def predict(batch: DataBatch): IndexedSeq[NDArray] = {
-    require(binded && paramsInitialized)
+    require(binded && paramsInitialized, "bind() and initParams() must be called first.")
     forward(batch, isTrain = Option(false))
     val pad = batch.pad
     getOutputsMerged().map(out => {
@@ -247,11 +247,23 @@ abstract class BaseModule {
 
   /**
    * Run prediction and collect the outputs.
-   * @param evalData
+   * @param evalData dataIter to do the Inference
    * @param numBatch Default is -1, indicating running all the batches in the data iterator.
    * @param reset Default is `True`, indicating whether we should reset the data iter before start
    *              doing prediction.
    * @return The return value will be a list `[out1, out2, out3]`.
+   *        The concatenation process will be like
+   *        {{{
+   *            outputBatches = [
+   *              [a1, a2, a3], // batch a
+   *              [b1, b2, b3]  // batch b
+   *            ]
+   *            result = [
+   *              NDArray, // [a1, b1]
+   *              NDArray, // [a2, b2]
+   *              NDArray, // [a3, b3]
+   *            ]
+   *        }}}
    *         Where each element is concatenation of the outputs for all the mini-batches.
    */
   def predict(evalData: DataIter, numBatch: Int = -1, reset: Boolean = true)
@@ -260,10 +272,12 @@ abstract class BaseModule {
     val numOutputs = outputBatches.head.size
     outputBatches.foreach(out =>
       require(out.size == numOutputs,
-      "Cannot merge batches, as num of outputs is not the same in mini-batches." +
+        s"Cannot merge batches, as num of outputs $numOutputs is not the same " +
+          s"in mini-batches (${out.size})." +
       "Maybe bucketing is used?")
     )
-    val concatenatedOutput = outputBatches.map(out => NDArray.concatenate(out))
+    val oBT = outputBatches.transpose
+    val concatenatedOutput = oBT.map(out => NDArray.concatenate(out))
     outputBatches.foreach(_.foreach(_.dispose()))
     concatenatedOutput
   }
@@ -292,7 +306,7 @@ abstract class BaseModule {
 
   // Parameters of a module
   /**
-   * Get parameters, those are potentially copies of the the actual parameters used
+   * Get parameters, those are potentially copies of the actual parameters used
    * to do computation on the device.
    * @return `(argParams, auxParams)`, a pair of dictionary of name to value mapping.
    */
@@ -395,10 +409,9 @@ abstract class BaseModule {
    */
   def fit(trainData: DataIter, evalData: Option[DataIter] = None, numEpoch: Int = 1,
           fitParams: FitParams = new FitParams): Unit = {
-    require(fitParams != null)
-    require(numEpoch > 0, "please specify number of epochs")
-    import org.apache.mxnet.DataDesc._
-    bind(dataShapes = trainData.provideData, labelShapes = Option(trainData.provideLabel),
+    require(fitParams != null, "Undefined fitParams")
+    require(numEpoch > 0, s"Invalid number of epochs $numEpoch")
+    bind(dataShapes = trainData.provideDataDesc, labelShapes = Option(trainData.provideLabelDesc),
          forTraining = true, forceRebind = fitParams.forceRebind)
     fitParams.monitor.foreach(installMonitor)
     initParams(fitParams.initializer, argParams, auxParams,
@@ -500,7 +513,7 @@ abstract class BaseModule {
    * Get outputs of the previous forward computation.
    * @return In the case when data-parallelism is used,
    *         the outputs will be collected from multiple devices.
-   *         The results will look like `[[out1_dev1, out1_dev2], [out2_dev1, out2_dev2]]`,
+   *         The results will look like `[ [out1_dev1, out1_dev2], [out2_dev1, out2_dev2] ]`,
    *         those `NDArray` might live on different devices.
    */
   def getOutputs(): IndexedSeq[IndexedSeq[NDArray]]
@@ -518,7 +531,7 @@ abstract class BaseModule {
    * Get the gradients to the inputs, computed in the previous backward computation.
    * @return In the case when data-parallelism is used,
    *         the grads will be collected from multiple devices.
-   *         The results will look like `[[grad1_dev1, grad1_dev2], [grad2_dev1, grad2_dev2]]`,
+   *         The results will look like `[ [grad1_dev1, grad1_dev2], [grad2_dev1, grad2_dev2] ]`,
    *         those `NDArray` might live on different devices.
    */
   def getInputGrads(): IndexedSeq[IndexedSeq[NDArray]]
@@ -604,7 +617,7 @@ class FitParams {
 
   // The performance measure used to display during training.
   def setEvalMetric(evalMetric: EvalMetric): FitParams = {
-    require(evalMetric != null)
+    require(evalMetric != null, "Undefined evalMetric")
     this.evalMetric = evalMetric
     this
   }
@@ -623,13 +636,13 @@ class FitParams {
   }
 
   def setKVStore(kvStore: String): FitParams = {
-    require(kvStore != null)
+    require(kvStore != null, "Undefined kvStore")
     this.kvstore = kvstore
     this
   }
 
   def setOptimizer(optimizer: Optimizer): FitParams = {
-    require(optimizer != null)
+    require(optimizer != null, "Undefined optimizer")
     this.optimizer = optimizer
     this
   }
@@ -649,7 +662,7 @@ class FitParams {
 
   // Will be called to initialize the module parameters if not already initialized.
   def setInitializer(initializer: Initializer): FitParams = {
-    require(initializer != null)
+    require(initializer != null, "Undefined Initializer")
     this.initializer = initializer
     this
   }
@@ -697,7 +710,7 @@ class FitParams {
   // checkpoint saved at a previous training phase at epoch N,
   // then we should specify this value as N+1.
   def setBeginEpoch(beginEpoch: Int): FitParams = {
-    require(beginEpoch >= 0)
+    require(beginEpoch >= 0, s"Invalid epoch $beginEpoch")
     this.beginEpoch = beginEpoch
     this
   }

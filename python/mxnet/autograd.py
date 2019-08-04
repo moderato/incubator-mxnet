@@ -197,6 +197,9 @@ def predict_mode():
 def mark_variables(variables, gradients, grad_reqs='write'):
     """Mark NDArrays as variables to compute gradient for autograd.
 
+    This is equivalent to the function .attach_grad() in a variable, but with this
+    call we can set the gradient to any value.
+
     Parameters
     ----------
     variables: NDArray or list of NDArray
@@ -273,8 +276,10 @@ def grad(heads, variables, head_grads=None, retain_graph=None, create_graph=Fals
     returned as new NDArrays instead of stored into `variable.grad`.
     Supports recording gradient graph for computing higher order gradients.
 
-    .. Note: Currently only a very limited set of operators support higher order
-    gradients.
+    .. note::
+
+      Currently only a very limited set of operators support higher order \
+      gradients.
 
     Parameters
     ----------
@@ -491,14 +496,13 @@ class Function(object):
                                       POINTER(CFUNCTYPE(c_int))),
                                  cast(c_array(c_void_p, [None]*len(callbacks)),
                                       POINTER(c_void_p)))
+        Function._registry.ref_holder[key] = context
         check_call(_LIB.MXCustomFunctionRecord(
             c_int(len(inputs)),
             c_handle_array(inputs),
             c_int(len(outputs)),
             c_handle_array(outputs),
             ctypes.byref(context)))
-
-        Function._registry.ref_holder[key] = context
 
         return ret_outputs
 

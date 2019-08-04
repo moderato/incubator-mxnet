@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # MXNet Examples
 
 This page contains a curated list of awesome MXNet examples, tutorials and blogs. It is inspired by [awesome-php](https://github.com/ziadoz/awesome-php) and [awesome-machine-learning](https://github.com/josephmisiti/awesome-machine-learning). See also [Awesome-MXNet](https://github.com/chinakook/Awesome-MXNet) for a similar list.
@@ -70,6 +87,7 @@ If your tutorial depends on specific packages, simply add them to this provision
 * [MXNet C++ API](http://mxnet.incubator.apache.org/api/c++/index.html)
    - [C++ examples](https://github.com/apache/incubator-mxnet/tree/master/example/image-classification/predict-cpp) - Example code for using C++ interface, including NDArray, symbolic layer and models.
 * [MXNet Python API](http://mxnet.incubator.apache.org/api/python/index.html)
+* [MXNet Java API](http://mxnet.incubator.apache.org/api/java/index.html)
 * [MXNet Scala API](http://mxnet.incubator.apache.org/api/scala/index.html)
 * [MXNet R API](http://mxnet.incubator.apache.org/api/r/index.html)
 * [MXNet Julia API](http://mxnet.incubator.apache.org/api/julia/index.html)
@@ -95,6 +113,7 @@ If your tutorial depends on specific packages, simply add them to this provision
 * [Gluon Examples](gluon) - several examples using the Gluon API
   * [Style Transfer](gluon/style_transfer) - a style transfer example using gluon
   * [Word Language Model](gluon/word_language_model) - an example that trains a multi-layer RNN on the Penn Treebank language modeling benchmark
+  * [SN-GAN](gluon/sn_gan) - an example that utilizes spectral normalization to train GAN(Generative adversarial network) using Gluon API
 * [Image Classification with R](image-classification) - image classification on MNIST,CIFAR,ImageNet-1k,ImageNet-Full, with multiple GPU and distributed training.
 * [Kaggle 1st national data science bowl](kaggle-ndsb1) - a MXnet example for Kaggle Nation Data Science Bowl 1
 * [Kaggle 2nd national data science bowl](kaggle-ndsb2) - a tutorial for Kaggle Second Nation Data Science Bowl
@@ -109,7 +128,7 @@ If your tutorial depends on specific packages, simply add them to this provision
 * [Neural Style](neural-style) - use deep learning for style transfer in images
 * [Numpy Operator Customization](numpy-ops) - Examplea on quick customize new ops with Numpy
 * [Profiling](profiler) - generate profiling results in json files
-* [Python How To](python-howto) - a variety of Python examples
+* [Quantization and Calibration Examples](quantization) - examples of quantizing a FP32 model to INT8 and performing low-precision inference with Intel MKL-DNN on CPU or cuDNN on GPU
 * [R-CNN](rcnn) - R-CNN with distributed implementation and data parallelization
 * [Recommender Systems](recommenders) - examples of how to build various kinds of recommender systems
 * [Reinforcement Learning](reinforcement-learning) - a variety of reinforcement learning examples
@@ -132,7 +151,7 @@ If your tutorial depends on specific packages, simply add them to this provision
 
 ### <a name="deep-learning-examples-other"></a>Other Deep Learning Examples with MXNet
 
-* [Face Recognition with ArcFace](https://github.com/onnx/models/tree/master/models/face_recognition/ArcFace) - ONNX model for face recognition with notebooks for training, validating and running inference in MXNet by [abhinavs95](https://github.com/abhinavs95)
+* [Face Recognition with ArcFace](https://github.com/onnx/models/tree/master/vision/body_analysis/arcface) - ONNX model for face recognition with notebooks for training, validating and running inference in MXNet by [abhinavs95](https://github.com/abhinavs95)
 * [Chinese plate recognition](https://github.com/imistyrain/mxnet-mr) - Recognize Chinese vehicle plate, by [imistyrain](https://github.com/imistyrain)
 * [Fast R-CNN](https://github.com/precedenceguo/mx-rcnn) by [Jian Guo](https://github.com/precedenceguo)
 * "End2End Captcha Recognition (OCR)" by [xlvector](https://github.com/xlvector) [github link](https://github.com/xlvector/learning-dl/tree/master/mxnet/ocr) [Blog in Chinese](http://blog.xlvector.net/2016-05/mxnet-ocr-cnn/)
@@ -152,7 +171,7 @@ If your tutorial depends on specific packages, simply add them to this provision
 * [MultiGPU enabled image generative models (GAN and DCGAN)](https://github.com/tqchen/mxnet-gan) by [Tianqi Chen](https://github.com/tqchen)
 * [Deep reinforcement learning for playing flappybird by mxnet](https://github.com/li-haoran/DRL-FlappyBird) by LIHaoran
 * [Neural Style in Markov Random Field (MRF) and Perceptual Losses Realtime transfer](https://github.com/zhaw/neural_style) by [zhaw](https://github.com/zhaw)
-* [MTCNN Face keypoints detection and alignment](https://pangyupo.github.io/2016/10/22/mxnet-mtcnn/) ([github](https://github.com/pangyupo/mxnet_mtcnn_face_detection)) in Chinese by [pangyupo](https://github.com/pangyupo)
+* [MTCNN Face keypoints detection and alignment](https://github.com/YYuanAnyVision/mxnet_mtcnn_face_detection) by [yuanyang](https://github.com/YYuanAnyVision), source code for [paper](https://kpzhang93.github.io/papers/spl.pdf) "Joint Face Detection and Alignment using Multi-task Cascaded Convolutional Neural Networks", [Kaipeng Zhang](https://github.com/kpzhang93), Zhanpeng Zhang, Zhifeng Li and Yu Qiao, IEEE Signal Processing Letters, 23(10), 2016
 * [SSD: Single Shot MultiBox Object Detector](https://github.com/zhreshold/mxnet-ssd) by [zhreshold](https://github.com/zhreshold)
 * [Fast Neural Style in Scala](https://github.com/Ldpe2G/DeepLearningForFun/tree/master/Mxnet-Scala/FastNeuralStyle) by [Ldpe2G](https://github.com/Ldpe2G)
 * [LSTM Human Activity Recognition](https://github.com/Ldpe2G/DeepLearningForFun/tree/master/Mxnet-Scala/HumanActivityRecognition) by [Ldpe2G](https://github.com/Ldpe2G)

@@ -19,7 +19,8 @@
 # pylint: disable= arguments-differ
 """Basic neural network layers."""
 __all__ = ['Sequential', 'HybridSequential', 'Dense', 'Dropout', 'Embedding',
-           'BatchNorm', 'InstanceNorm', 'LayerNorm', 'Flatten', 'Lambda', 'HybridLambda']
+           'BatchNorm', 'InstanceNorm', 'LayerNorm', 'GroupNorm',
+           'Flatten', 'Lambda', 'HybridLambda']
 import warnings
 import numpy as np
 
@@ -75,7 +76,7 @@ class Sequential(Block):
         return len(self._children)
 
     def hybridize(self, active=True, **kwargs):
-        """Activates or deactivates `HybridBlock`s recursively. Has no effect on
+        """Activates or deactivates `HybridBlock` s recursively. Has no effect on
         non-hybrid children.
 
         Parameters
@@ -160,9 +161,9 @@ class Dense(HybridBlock):
         Activation function to use. See help on `Activation` layer.
         If you don't specify anything, no activation is applied
         (ie. "linear" activation: `a(x) = x`).
-    use_bias : bool
+    use_bias : bool, default True
         Whether the layer uses a bias vector.
-    flatten: bool
+    flatten: bool, default True
         Whether the input tensor should be flattened.
         If true, all but the first axis of input data are collapsed together.
         If false, all but the last axis of input data are kept the same, and the transformation
@@ -262,7 +263,10 @@ class Dropout(HybridBlock):
         self._axes = axes
 
     def hybrid_forward(self, F, x):
-        return F.Dropout(x, p=self._rate, axes=self._axes, name='fwd')
+        if self._rate > 0:
+            return F.Dropout(x, p=self._rate, axes=self._axes, name='fwd', cudnn_off=False)
+        else:
+            return F.identity(x)
 
     def __repr__(self):
         s = '{name}(p = {_rate}, axes={_axes})'
@@ -302,10 +306,10 @@ class BatchNorm(HybridBlock):
         Initializer for the beta weight.
     gamma_initializer: str or `Initializer`, default 'ones'
         Initializer for the gamma weight.
-    moving_mean_initializer: str or `Initializer`, default 'zeros'
-        Initializer for the moving mean.
-    moving_variance_initializer: str or `Initializer`, default 'ones'
-        Initializer for the moving variance.
+    running_mean_initializer: str or `Initializer`, default 'zeros'
+        Initializer for the running mean.
+    running_variance_initializer: str or `Initializer`, default 'ones'
+        Initializer for the running variance.
     in_channels : int, default 0
         Number of channels (feature maps) in input data. If not specified,
         initialization will be deferred to the first time `forward` is called
@@ -537,7 +541,7 @@ class LayerNorm(HybridBlock):
 
     .. math::
 
-      out = \frac{x - mean[data, axis]}{ \sqrt{Var[data, axis]} + \epsilon} * gamma + beta
+      out = \frac{x - mean[data, axis]}{ \sqrt{Var[data, axis] + \epsilon}} * gamma + beta
 
     Parameters
     ----------
@@ -613,6 +617,94 @@ class LayerNorm(HybridBlock):
                                            for k, v in self._kwargs.items()]))
 
 
+class GroupNorm(HybridBlock):
+    r"""
+    Applies group normalization to the n-dimensional input array.
+    This operator takes an n-dimensional input array where the leftmost 2 axis are
+    `batch` and `channel` respectively:
+
+    .. math::
+
+      x = x.reshape((N, num_groups, C // num_groups, ...))
+      axis = (2, ...)
+      out = \frac{x - mean[x, axis]}{ \sqrt{Var[x, axis] + \epsilon}} * gamma + beta
+
+    Parameters
+    ----------
+    num_groups: int, default 1
+        Number of groups to separate the channel axis into.
+    epsilon: float, default 1e-5
+        Small float added to variance to avoid dividing by zero.
+    center: bool, default True
+        If True, add offset of `beta` to normalized tensor.
+        If False, `beta` is ignored.
+    scale: bool, default True
+        If True, multiply by `gamma`. If False, `gamma` is not used.
+    beta_initializer: str or `Initializer`, default 'zeros'
+        Initializer for the beta weight.
+    gamma_initializer: str or `Initializer`, default 'ones'
+        Initializer for the gamma weight.
+
+
+    Inputs:
+        - **data**: input tensor with shape (N, C, ...).
+
+    Outputs:
+        - **out**: output tensor with the same shape as `data`.
+
+    References
+    ----------
+        `Group Normalization
+        <https://arxiv.org/pdf/1803.08494.pdf>`_
+
+    Examples
+    --------
+    >>> # Input of shape (2, 3, 4)
+    >>> x = mx.nd.array([[[ 0,  1,  2,  3],
+                          [ 4,  5,  6,  7],
+                          [ 8,  9, 10, 11]],
+                         [[12, 13, 14, 15],
+                          [16, 17, 18, 19],
+                          [20, 21, 22, 23]]])
+    >>> # Group normalization is calculated with the above formula
+    >>> layer = GroupNorm()
+    >>> layer.initialize(ctx=mx.cpu(0))
+    >>> layer(x)
+    [[[-1.5932543 -1.3035717 -1.0138891 -0.7242065]
+      [-0.4345239 -0.1448413  0.1448413  0.4345239]
+      [ 0.7242065  1.0138891  1.3035717  1.5932543]]
+     [[-1.5932543 -1.3035717 -1.0138891 -0.7242065]
+      [-0.4345239 -0.1448413  0.1448413  0.4345239]
+      [ 0.7242065  1.0138891  1.3035717  1.5932543]]]
+    <NDArray 2x3x4 @cpu(0)>
+    """
+    def __init__(self, num_groups=1, epsilon=1e-5, center=True, scale=True,
+                 beta_initializer='zeros', gamma_initializer='ones',
+                 prefix=None, params=None):
+        super(GroupNorm, self).__init__(prefix=prefix, params=params)
+        self._kwargs = {'eps': epsilon, 'num_groups': num_groups, 'center': center, 'scale': scale}
+        self._num_groups = num_groups
+        self._epsilon = epsilon
+        self._center = center
+        self._scale = scale
+        self.gamma = self.params.get('gamma', grad_req='write' if scale else 'null',
+                                     shape=(num_groups,), init=gamma_initializer,
+                                     allow_deferred_init=True)
+        self.beta = self.params.get('beta', grad_req='write' if center else 'null',
+                                    shape=(num_groups,), init=beta_initializer,
+                                    allow_deferred_init=True)
+
+    def hybrid_forward(self, F, data, gamma, beta):
+        norm_data = F.GroupNorm(data, gamma=gamma, beta=beta, num_groups=self._num_groups, eps=self._epsilon)
+        return norm_data
+
+    def __repr__(self):
+        s = '{name}({content})'
+        return s.format(name=self.__class__.__name__,
+                        content=', '.join(['='.join([k, v.__repr__()])
+                                           for k, v in self._kwargs.items()]))
+
+
 class Lambda(Block):
     r"""Wraps an operator or an expression as a Block object.
 
@@ -625,7 +717,7 @@ class Lambda(Block):
 
             block = Lambda('tanh')
 
-        2) a function that conforms to "def function(*args)". For example::
+        2) a function that conforms to ``def function(*args)``. For example::
 
             block = Lambda(lambda x: nd.LeakyReLU(x, slope=0.1))
 
@@ -663,20 +755,21 @@ class HybridLambda(HybridBlock):
     ----------
     function : str or function
         Function used in lambda must be one of the following:
-        1) the name of an operator that is available in both symbol and ndarray. For example::
+        1) The name of an operator that is available in both symbol and ndarray. For example::
 
             block = HybridLambda('tanh')
 
-        2) a function that conforms to "def function(F, data, *args)". For example::
+        2) A function that conforms to ``def function(F, data, *args)``. For example::
 
             block = HybridLambda(lambda F, x: F.LeakyReLU(x, slope=0.1))
 
     Inputs:
-        - ** *args **: one or more input data. First argument must be symbol or ndarray.
-        Their shapes depend on the function.
+        - ** *args **: one or more input data. First argument must be symbol or ndarray. Their \
+            shapes depend on the function.
 
     Output:
         - ** *outputs **: one or more output data. Their shapes depend on the function.
+
     """
     def __init__(self, function, prefix=None):
         super(HybridLambda, self).__init__(prefix=prefix)
